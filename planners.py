@@ -131,6 +131,67 @@ def choose_minimax(match, side, budget=SEARCH_BUDGET, max_depth=4):
     return Decision(action, explored, depth)
 
 
+@dataclass
+class Node:
+    visits: int = 0
+    total: float = 0.
+    children: dict = field(default_factory=dict)
+
+    def priority(self, parent_visits, maximize):
+        if not self.visits:
+            return float("inf")
+        mean = self.total/self.visits
+        return (mean if maximize else -mean)+.83*sqrt(log(max(1, parent_visits))/self.visits)
+
+
+def choose_mcts(match, side, budget=SEARCH_BUDGET, iterations=28):
+    """Open-loop UCT sampling hidden hands and future draws in the regular draft."""
+    actions = match.draft_actions(side, 4)
+    if not actions:
+        return Decision()
+    root = Node()
+    rival = 1-side
+    rng = Random(match.round_number*131 + (match.sides[side].draws+1)*51+(match.sides[rival].draws+1)*273+
+                 sum((i+1)*card for i, card in enumerate(match.sides[side].hand)))
+    end = perf_counter()+budget
+    maximum_depth = 0
+    while root.visits < iterations and (root.visits == 0 or perf_counter() < end):
+        state = draft_snapshot(match, rng.getrandbits(64))
+        sample_opponent(state, side, rng)
+        node, turn = root, side
+        path = [node]
+        for _ in range(5):
+            if all(team.ready for team in state.sides):
+                break
+            available = state.draft_actions(turn, 4) or [None]
+            unseen = [action for action in available if action not in node.children]
+            if unseen:
+                action = unseen[0]
+                child = node.children[action] = Node()
+            else:
+                action = max(available, key=lambda move: node.children[move].priority(node.visits, turn == side))
+                child = node.children[action]
+            state.apply_draft(turn, action)
+            path.append(child)
+            node, turn = child, 1-turn
+            if unseen:
+                break
+        # Greedy rollout for both sides with occasional alternative formation choices.
+        while not all(team.ready for team in state.sides):
+            available = state.draft_actions(turn, 3)
+            action = (rng.choice(available) if rng.random() < .24 else available[0]) if available else None
+            state.apply_draft(turn, action)
+            turn = 1-turn
+        value = battlefield_value(state, side)
+        for visit in path:
+            visit.visits += 1
+            visit.total += value
+        maximum_depth = max(maximum_depth, len(path)-1)
+    action = max(root.children, key=lambda move: (root.children[move].visits,
+                                                   root.children[move].total/root.children[move].visits))
+    return Decision(action, root.visits, maximum_depth)
+
+
 def choose_greedy(match, side):
     actions = match.draft_actions(side, 1)
     return Decision(actions[0], 1, 1) if actions else Decision()
@@ -146,5 +207,6 @@ class DraftPlanner:
 
 DRAFT_PLANNERS = {
     "minimax": DraftPlanner("Minimax", choose_minimax, "nodes", "Looks ahead at draft moves and counterpicks."),
+    "mcts": DraftPlanner("MCTS", choose_mcts, "rollouts", "Samples possible drafts and simulates battles."),
     "greedy": DraftPlanner("Greedy", choose_greedy, "", "Takes the best-rated move on each turn."),
 }
