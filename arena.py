@@ -340,6 +340,21 @@ class Match:
                 self.time += STEP
             self.age_effects()
 
+    def next_round(self):
+        if self.phase != "round_end":
+            return False
+        self.round_number += 1
+        self.round_winner = None
+        self.reason = ""
+        self.phase, self.time = "prep", 0.
+        self.fighters.clear()
+        self.effects.clear()
+        for team in self.sides:
+            team.ready = False
+            team.upgrades = self.round_number
+            team.returning = sorted(team.field.values(), key=lambda recruit: (recruit.hero, -recruit.rank))
+            team.field.clear()
+        return True
 
     def age_effects(self):
         for effect in self.effects:
@@ -564,7 +579,14 @@ class Match:
             self.reason = "Time limit · Remaining health percentage"
         if self.round_winner is None:
             return
-        self.phase, self.time = "round_end", 0.
+        if self.round_winner != -1:
+            self.round_wins[self.round_winner] += 1
+        if max(self.round_wins) >= WINS_NEEDED or self.round_number == MAX_ROUNDS:
+            a, b = self.round_wins
+            self.winner = -1 if a == b else int(b > a)
+            self.phase = "end"
+        else:
+            self.phase, self.time = "round_end", 0.
 
     def cpu_prepare(self, side=1):
         while options := self.draft_actions(side, limit=1):
