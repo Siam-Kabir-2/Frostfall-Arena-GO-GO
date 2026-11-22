@@ -169,7 +169,9 @@ class ArenaKit:
         self.battle_texture = loader.loadTexture(Filename.fromOsSpecific(str(BATTLE_SHEET)))
         self.title_texture = loader.loadTexture(Filename.fromOsSpecific(str(TITLE_SHEET)))
         self.button_texture = loader.loadTexture(Filename.fromOsSpecific(str(BUTTON_SHEET)))
-        home_textures = ()
+        self.home_texture = loader.loadTexture(Filename.fromOsSpecific(str(HOME_SHEET)))
+        self.home_toolbar = loader.loadTexture(Filename.fromOsSpecific(str(HOME_TOOLBAR_SHEET)))
+        home_textures = (self.home_texture, self.home_toolbar)
         for texture in (self.texture, self.dock_texture, self.title_texture, self.button_texture, *home_textures):
             texture.setMinfilter(Texture.FTLinearMipmapLinear)
             texture.setMagfilter(Texture.FTLinear)

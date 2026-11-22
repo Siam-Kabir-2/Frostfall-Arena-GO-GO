@@ -119,11 +119,39 @@ class GoGoHUD(HUD):
         return None
 
     def home(self, game):
-        x, y, w, h = self.dialog("Frostfall Arena Go Go", "Local arena", 440, 250)
-        s = self.s
-        self.button("Human vs Human", (x+32*s, y+125*s, w-64*s, 46*s),
-                    lambda: game.mode_key("local"), primary=True)
-        self.button("Exit", (x+32*s, y+188*s, w-64*s, 38*s), game.userExit)
+        if self.compact:
+            s = min(self.h/476, self.w/400)
+            x, y = (self.w-248*s)/2, self.h-280*s
+        else:
+            s = min(self.h/394, self.w/690)
+            x, y = 11*s, (self.h-394*s)*.35+88*s
+
+        def centered(name, top, width):
+            w = width*s
+            area = (x+(248*s-w)/2, y+top*s, w, w/region_aspect(HOME_REGIONS[name]))
+            self.kit.home_sprite(name, area)
+
+        self.kit.home_sprite("panel", (x, y, 248*s, 264*s))
+        centered("logo", -69, 226)
+        centered("heading", 27, 170)
+        for index, mode in enumerate(("local", "cpu", "showdown")):
+            area = (x+16*s, y+(66+57*index)*s, 216*s, 55*s)
+            self.home_button(mode, area, lambda mode=mode: game.mode_key(mode))
+
+        toolbar = (("help", lambda: game.open_modal("help")), ("sound", game.toggle_sound),
+                   ("settings", lambda: game.open_modal("settings")), ("exit", game.userExit))
+        height = 26*s
+        right = self.w-9*s
+        for name, action in reversed(toolbar):
+            width = height*region_aspect(HOME_TOOL_REGIONS[name])
+            area = (right-width, 9*s, width, height)
+            art = self.home_button(name, area, action)
+            if name == "sound" and not game.sound:
+                art.setColor(.53, .67, .84, 1)
+                left, top, w, h = area
+                self.geometry("Muted sound slash", tuple((left+px*w, top+py*h) for px, py in
+                              ((.28, .25), (.35, .20), (.73, .68), (.66, .73))), (1, .74, .62, 1))
+            right -= width+4*s
 
     def home_button(self, name, area, action):
         art = self.kit.home_sprite(name, area)

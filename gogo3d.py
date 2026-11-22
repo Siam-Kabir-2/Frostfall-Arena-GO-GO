@@ -16,7 +16,7 @@ from gogo_stage import GoGoStage, world
 from planners import DRAFT_PLANNERS, draft_snapshot
 from sprites import STANDING_HEIGHT
 
-MODES = ("local",)
+MODES = ("cpu", "local", "showdown")
 SETUP_MODES = {"cpu_setup": "cpu", "ai_setup": "showdown"}
 
 
@@ -57,7 +57,7 @@ class GoGo3D(BoardWindow):
         self.accept("mouse1", self.click)
         self.accept("mouse1-up", self.release)
         self.accept("mouse3", self.right_click)
-        for key, mode in zip("2", MODES):
+        for key, mode in zip("123", MODES):
             self.accept(key, self.mode_key, [mode])
         self.accept("escape", self.escape)
         self.accept("v", self.toggle_view)
@@ -360,6 +360,7 @@ class GoGo3D(BoardWindow):
         if self.mode is None or self.modal:
             return
         self.notice_time = max(0., self.notice_time-dt)
+        self.tick_ai(dt)
         self.accumulator += dt
         self.sync_phase()
         while self.accumulator+CLOCK_EPSILON >= STEP:
