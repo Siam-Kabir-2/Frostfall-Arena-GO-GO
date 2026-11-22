@@ -216,15 +216,28 @@ class GoGoHUD(HUD):
         self.buttons.append(Button(area, action, art))
 
     def help(self, game):
-        x, y, w, h = self.dialog("How to play", "Deploy a squad, then press Ready.", 440, 196)
-        s = self.s
-        self.button("Back", (x+32*s, y+h-62*s, w-64*s, 39*s), game.close_modal)
+        bounds = self.artwork_dialog("help", HELP_PANEL)
+        shortcuts = (("cpu", (219, 701, 541, 809)), ("local", (563, 700, 943, 809)),
+                     ("showdown", (966, 700, 1235, 809)))
+        if game.mode is None:
+            for mode, pixels in shortcuts:
+                self.artwork_button(mode, "help", bounds, HELP_PANEL, pixels,
+                                    lambda mode=mode: game.mode_key(mode))
+        self.artwork_button("help-back", "help", bounds, HELP_PANEL, (488, 830, 957, 988), game.close_modal)
 
     def settings(self, game):
-        x, y, w, h = self.dialog("Settings", "Display options", 440, 239)
-        s = self.s
-        self.button("Toggle fullscreen", (x+32*s, y+110*s, w-64*s, 45*s), game.toggle_fullscreen)
-        self.button("Back", (x+32*s, y+174*s, w-64*s, 39*s), game.close_modal)
+        bounds = self.artwork_dialog("settings", SETTINGS_PANEL)
+        items = (("Sound effects", game.sound, game.toggle_sound),
+                 ("Fullscreen", game.fullscreen, game.toggle_fullscreen))
+        for (name, on, action), pixels in zip(items, SETTINGS_ROWS):
+            area = fit_region(bounds, SETTINGS_PANEL, pixels)
+            art = self.kit.setting_switch(name, area, on)
+            x, y, w, h = area
+            # The enlarged selected side overlaps the center of the segmented sprite.
+            target = (x+w*.57, y, w*.43, h) if on else (x, y, w*.43, h)
+            self.buttons.append(Button(target, action, art))
+        self.artwork_button("settings-back", "settings", bounds, SETTINGS_PANEL, (396, 754, 1051, 987),
+                            game.close_modal)
 
     def header(self, game):
         scoreboard, badge, buttons, _ = match_header_layout(self.w, self.s)

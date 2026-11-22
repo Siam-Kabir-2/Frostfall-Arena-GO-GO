@@ -171,7 +171,13 @@ class ArenaKit:
         self.button_texture = loader.loadTexture(Filename.fromOsSpecific(str(BUTTON_SHEET)))
         self.home_texture = loader.loadTexture(Filename.fromOsSpecific(str(HOME_SHEET)))
         self.home_toolbar = loader.loadTexture(Filename.fromOsSpecific(str(HOME_TOOLBAR_SHEET)))
-        home_textures = (self.home_texture, self.home_toolbar)
+        self.dialog_textures = {name: loader.loadTexture(Filename.fromOsSpecific(str(path)))
+                                for name, path in (("help", HELP_SHEET), ("settings", SETTINGS_SHEET))}
+        self.switch_textures = {on: loader.loadTexture(Filename.fromOsSpecific(str(path)))
+                                for on, path in SWITCH_SHEETS.items()}
+        self.settings_shader = Shader.make(Shader.SL_GLSL, PANEL_VERTEX, SETTINGS_FRAGMENT)
+        home_textures = (self.home_texture, self.home_toolbar, *self.dialog_textures.values(),
+                         *self.switch_textures.values())
         for texture in (self.texture, self.dock_texture, self.title_texture, self.button_texture, *home_textures):
             texture.setMinfilter(Texture.FTLinearMipmapLinear)
             texture.setMagfilter(Texture.FTLinear)

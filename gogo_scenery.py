@@ -35,7 +35,12 @@ class ArenaBackdrop:
     def __init__(self, game):
         self.image = game.loader.loadTexture(Filename.fromOsSpecific(str(ASSETS / "aurora-arena.png")))
         self.image.setMinfilter(Texture.FTLinearMipmapLinear)
+        video = MovieTexture("Home background")
         self.video = None
+        if video.read(Filename.fromOsSpecific(str(ASSETS / "home-background.mp4"))):
+            video.setMinfilter(Texture.FTLinear)
+            video.setLoop(True)
+            self.video = video
         for texture in (self.image, self.video):
             if texture is not None:
                 texture.setMagfilter(Texture.FTLinear)
