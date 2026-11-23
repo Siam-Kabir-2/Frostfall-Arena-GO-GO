@@ -12,6 +12,7 @@ from frostfall.client3d import BoardWindow
 from frostfall.stage3d import TOP, ease
 from gogo_hud import GoGoHUD, dock_layout, match_header_layout, ui_scale
 from gogo_scenery import ArenaBackdrop
+from gogo_sound import GoGoSounds
 from gogo_stage import GoGoStage, world
 from planners import DRAFT_PLANNERS, draft_snapshot
 from sprites import STANDING_HEIGHT
@@ -24,7 +25,7 @@ class GoGo3D(BoardWindow):
     def __init__(self, window_type="onscreen", audio_enabled=True, *, fit_bounds=None):
         self.fit_bounds = fit_bounds or initial_window()
         self.windowed_bounds = self.fit_bounds
-        super().__init__(window_type, audio_enabled, hud_type=GoGoHUD,
+        super().__init__(window_type, audio_enabled, hud_type=GoGoHUD, sounds_type=GoGoSounds,
                          smoothing_strength=.35)
         self.backdrop = ArenaBackdrop(self)
         self.lens = PerspectiveLens()
@@ -89,6 +90,8 @@ class GoGo3D(BoardWindow):
         return DRAFT_PLANNERS[self.cpu_algorithm if mode == "cpu" else self.ai_algorithms[side]]
 
     def select_ai(self, mode, side, key):
+        if DRAFT_PLANNERS[key] != self.ai_planner(side, mode=mode):
+            self.sounds.play("select")
         if mode == "cpu":
             self.cpu_algorithm = key
         else:
@@ -105,6 +108,9 @@ class GoGo3D(BoardWindow):
         self.reset_draft()
 
     def reset_draft(self):
+        self.sounds.stop_effects()
+        self.sounds.set_scene(True)
+        self.sounds.play("draft")
         self.selected = self.drag_start = None
         self.accumulator = 0.
         self.notice = ""
@@ -126,6 +132,9 @@ class GoGo3D(BoardWindow):
 
     def home(self):
         self.stop_search()
+        self.sounds.stop_effects()
+        self.sounds.set_scene(False)
+        self.sounds.play("back")
         self.mode = self.modal = self.selected = self.drag_start = None
         self.arena.root.hide()
         self.hud_clock = 0.
@@ -136,10 +145,15 @@ class GoGo3D(BoardWindow):
         if self.modal == name:
             self.close_modal()
             return
+        if name == "pause":
+            self.sounds.stop_effects()
         self.modal = name
+        self.sounds.play("open")
         self.hud_clock = 0.
 
     def close_modal(self):
+        if self.modal:
+            self.sounds.play("back")
         self.modal = None
         self.hud_clock = 0.
 
@@ -148,6 +162,7 @@ class GoGo3D(BoardWindow):
             self.close_modal()
         elif self.selected:
             self.selected = self.drag_start = None
+            self.sounds.play("back")
             self.hud_clock = 0.
         elif self.mode:
             self.open_modal("pause")
@@ -168,11 +183,13 @@ class GoGo3D(BoardWindow):
 
     def toggle_view(self):
         self.overhead = not self.overhead
+        self.sounds.play("camera")
         self.hud_clock = 0.
 
     def toggle_sound(self):
         self.sound = not self.sound
-        self.sounds.enabled = self.sound
+        self.sounds.set_enabled(self.sound)
+        self.sounds.play("select")
         self.hud_clock = 0.
 
     def fit_window(self):
@@ -185,6 +202,7 @@ class GoGo3D(BoardWindow):
             bounds.setSize(width, height)
             self.win.requestProperties(bounds)
             self.fullscreen = False
+            self.sounds.play("camera")
             self.hud_clock = 0.
 
     def toggle_fullscreen(self):
@@ -205,11 +223,13 @@ class GoGo3D(BoardWindow):
         properties.setSize(width, height)
         self.win.requestProperties(properties)
         self.fullscreen = properties.getUndecorated()
+        self.sounds.play("camera")
         self.hud_clock = 0.
 
     def message(self, text):
         self.notice = text
         self.notice_time = 2.55
+        self.sounds.play("denied")
         self.hud_clock = 0.
 
     def ready(self, side):
@@ -227,7 +247,11 @@ class GoGo3D(BoardWindow):
         self.hud_clock = 0.
 
     def lock_draft(self, side):
+        team = self.match.sides[side]
+        was_ready = team.ready
         self.match.lock(side)
+        if team.ready != was_ready and self.match.phase == "prep":
+            self.sounds.play("ready" if team.ready else "back", 1. if self.human(side) else .72)
 
     def select_upgrade(self, side):
         if self.modal or not self.human(side) or not self.match.editable(side):
@@ -237,6 +261,7 @@ class GoGo3D(BoardWindow):
             return
         choice = side, "upgrade", None
         self.selected = None if self.selected == choice else choice
+        self.sounds.play("select" if self.selected else "back")
         self.hud_clock = 0.
 
     def deploy(self, cell):
@@ -260,6 +285,7 @@ class GoGo3D(BoardWindow):
         else:
             self.selected = None
             self.notice_time = 0.
+            self.sounds.play({"card": "buy", "return": "place", "upgrade": "upgrade", "unit": "place"}[kind])
             self.hud_clock = 0.
         return True
 
@@ -277,6 +303,7 @@ class GoGo3D(BoardWindow):
         card = self.hud.card_at(pixels)
         if card and self.human(card[0]) and self.match.editable(card[0]):
             self.selected, self.drag_start = card, pixels
+            self.sounds.play("select")
             self.hud_clock = 0.
             return
         if self.hud.contains(pixels):
@@ -288,6 +315,7 @@ class GoGo3D(BoardWindow):
             if self.human(side) and self.match.editable(side) and cell in team.field:
                 self.selected = side, "unit", cell
                 self.drag_start = pixels
+                self.sounds.play("select")
                 self.hud_clock = 0.
                 break
 
@@ -306,6 +334,7 @@ class GoGo3D(BoardWindow):
             return
         if self.selected:
             self.selected = self.drag_start = None
+            self.sounds.play("back")
             self.hud_clock = 0.
             return
         cell = self.stage.pick(self.cam, self.lens, pointer)
@@ -313,6 +342,7 @@ class GoGo3D(BoardWindow):
             for side in (0, 1):
                 if self.human(side) and self.match.editable(side) and cell in self.match.sides[side].field:
                     self.match.sell(side, cell)
+                    self.sounds.play("sell")
                     self.hud_clock = 0.
 
     def tick_ai(self, dt):
@@ -339,11 +369,14 @@ class GoGo3D(BoardWindow):
                 elif isinstance(action, UpgradeAction):
                     unit = self.match.sides[side].field[action.cell]
                     self.ai_move[side] = f"Upgraded {ROSTER[unit.hero].name} to rank {unit.rank}."
+                    self.sounds.play("upgrade", .69)
                 elif isinstance(action, RedeployAction):
                     unit = self.match.sides[side].field[action.cell]
                     self.ai_move[side] = f"Repositioned {ROSTER[unit.hero].name}."
+                    self.sounds.play("place", .69)
                 else:
                     self.ai_move[side] = f"Deployed {ROSTER[action.hero].name}."
+                    self.sounds.play("buy", .69)
             if self.mode == "showdown":
                 self.ai_turn = 1-side
             self.ai_delay = .20
@@ -366,9 +399,10 @@ class GoGo3D(BoardWindow):
         while self.accumulator+CLOCK_EPSILON >= STEP:
             self.accumulator = max(0., self.accumulator-STEP)
             previous_count = self.match.seconds_left if self.match.phase == "countdown" else None
-            self.match.step()
+            self.sounds.step_battle(self.match)
             self.sync_phase()
             if previous_count is not None and self.match.phase == "countdown" and self.match.seconds_left < previous_count:
+                self.sounds.play("countdown")
                 self.hud_clock = 0.
             if self.mode == "showdown" and self.match.phase == "round_end" and self.match.time+CLOCK_EPSILON >= 2.8:
                 self.next_round()
@@ -378,8 +412,25 @@ class GoGo3D(BoardWindow):
             self.last_phase = self.match.phase
             self.selected = self.drag_start = None
             self.stop_search()
+            self.play_phase_cue()
             self.hud_clock = 0.
 
+    def play_phase_cue(self):
+        if self.match.phase == "countdown":
+            self.sounds.play("countdown")
+            return
+        if self.match.phase == "fight":
+            self.sounds.play("fight")
+            return
+        final = self.match.phase == "end"
+        winner = self.match.winner if final else self.match.round_winner
+        if winner == -1:
+            cue = "draw"
+        elif self.mode == "cpu" and winner == 1:
+            cue = "defeat" if final else "round_loss"
+        else:
+            cue = "victory" if final else "round_win"
+        self.sounds.play(cue)
 
     def camera_layout(self, width, height, dt):
         target = float(self.overhead)
