@@ -103,7 +103,7 @@ class GoGo3D(BoardWindow):
         self.mode = mode
         self.arena.root.show()
         self.modal = None
-        self.match = Match(self.seed, public_draft=mode == "showdown")
+        self.match = Match(self.seed, public_draft=mode == "showdown", countdown=True)
         self.first_turn = 1-self.first_turn
         self.reset_draft()
 

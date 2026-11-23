@@ -532,6 +532,21 @@ class GoGoHUD(HUD):
             self.kit.draw("azure_crest", (middle-crest/2, y+h*.82, crest, crest))
 
 
+    def battle_countdown(self, match):
+        number = match.seconds_left
+        beat = match.time-(COUNTDOWN-number)
+        pulse = 1+.16*(1-ease(min(1., beat*4)))
+        s = self.s
+        x, y = self.w/2, self.h*.47
+        w, h = 255*s, 171*s
+        self.ice_panel(x-w/2, y-h/2, w, h, accent=ICE_BLUE)
+        self.text(f"ROUND {match.round_number}", x, y-47*s, 18, FEED, "label", CENTER)
+        number_art = self.text(number, x, y+37*s, 101*pulse, INK, "heavy", CENTER)
+        number_art.node().setShadow(.045, .055)
+        for index in range(COUNTDOWN):
+            color = ICE_BLUE if index < number else (.21, .44, .57, 1)
+            self.shape(x+(index-1)*24*s-6*s, y+55*s, 12*s, 6*s, color, 3*s)
+
     def pause_menu(self, game):
         x, y, w, h = self.dialog("Paused", f"Round {game.match.round_number}", 410, 242)
         s = self.s
@@ -558,6 +573,8 @@ class GoGoHUD(HUD):
             self.settings(game)
         elif game.modal == "pause":
             self.pause_menu(game)
+        elif game.mode is not None and phase == "countdown":
+            self.battle_countdown(game.match)
         elif game.mode is not None and phase in ("round_end", "end"):
             self.match_result(game)
 
