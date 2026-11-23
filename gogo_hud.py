@@ -452,6 +452,14 @@ class GoGoHUD(HUD):
                 x, y = screen
                 label = self.text("NIGHT SLIP", x, y-15*s, 15, hero_tint(effect.hero), "label", CENTER)
                 label.node().setShadow(.09, .09)
+        for point, rank, progress in game.stage.upgrade_labels:
+            screen = game.project(point+headroom)
+            if screen:
+                x, y = screen
+                alpha = min(1., progress*14, (1-progress)*3)
+                lift = ease(progress)*23*s
+                self.shape(x-33*s, y-43*s-lift, 66*s, 22*s, (.08, .055, .03, alpha*.92), 5*s)
+                self.text(f"RANK {rank}", x, y-27*s-lift, 17, (*GOLD[:3], alpha), "heavy", CENTER)
 
     def battle_status(self, game, mouse):
         selected = game.selected
@@ -531,6 +539,15 @@ class GoGoHUD(HUD):
             crest = min(22*s, h*.10)
             self.kit.draw("azure_crest", (middle-crest/2, y+h*.82, crest, crest))
 
+    def match_dialog(self, width, height, accent):
+        self.buttons.clear()
+        self.blocked = [(0, 0, self.w, self.h)]
+        self.shape(0, 0, self.w, self.h, (.008, .020, .044, .73))
+        self.s = min(1.4, self.w/(width+56), self.h/(height+76))
+        w, h = width*self.s, height*self.s
+        bounds = ((self.w-w)/2, (self.h-h)/2, w, h)
+        self.ice_panel(*bounds, accent=accent)
+        return bounds
 
     def battle_countdown(self, match):
         number = match.seconds_left
@@ -548,20 +565,62 @@ class GoGoHUD(HUD):
             self.shape(x+(index-1)*24*s-6*s, y+55*s, 12*s, 6*s, color, 3*s)
 
     def pause_menu(self, game):
-        x, y, w, h = self.dialog("Paused", f"Round {game.match.round_number}", 410, 242)
+        x, y, w, h = self.match_dialog(514, 306, ICE_BLUE)
         s = self.s
-        self.button("Resume", (x+32*s, y+119*s, w-64*s, 40*s), game.close_modal, primary=True)
-        self.button("Home", (x+32*s, y+175*s, w-64*s, 40*s), game.home)
+        center = x+w/2
+        self.kit.draw("blank_crest", (center-39*s, y+14*s, 78*s, 72*s))
+        for left in (-11, 3):
+            self.shape(center+left*s, y+37*s, 8*s, 23*s, INK, 2*s)
+        self.text("MATCH PAUSED", center, y+124*s, 46, INK, "heavy", CENTER)
+
+        match = game.match
+        phase = {"prep": "Draft phase", "countdown": "Battle countdown", "fight": "Battle phase",
+                 "round_end": "Round complete"}[match.phase]
+        detail = f"Round {match.round_number} of {MAX_ROUNDS}  ·  {phase}"
+        self.text(detail, center, y+156*s, 19, FEED, "body", CENTER)
+        self.shape(x+36*s, y+182*s, w-72*s, s, (.37, .74, .88, .45))
+
+        self.button("Main menu", (x+34*s, y+203*s, 157*s, 53*s), game.home, size=18)
+        self.button("Resume match", (x+205*s, y+203*s, w-239*s, 53*s), game.close_modal,
+                    primary=True, arrow=True, size=21)
+        self.text("Esc or P to resume", center, y+h-23*s, 15, FEED, "body", CENTER)
 
     def match_result(self, game):
-        final = game.match.phase == "end"
-        winner = game.match.winner if final else game.match.round_winner
-        title = "Draw" if winner == -1 else f"{game.team_name(winner)} wins"
-        x, y, w, h = self.dialog(title, "Match complete" if final else "Round complete", 440, 199)
+        match = game.match
+        final = match.phase == "end"
+        winner = match.winner if final else match.round_winner
+        accent = ICE_BLUE if winner == -1 else TEAM[winner]
+        x, y, w, h = self.match_dialog(628, 377 if final else 408, accent)
         s = self.s
-        self.button("Home", (x+32*s, y+121*s, 109*s, 42*s), game.home)
-        self.button("Rematch" if final else "Next round", (x+153*s, y+121*s, w-185*s, 42*s),
-                    game.rematch if final else game.next_round, primary=True)
+        center = x+w/2
+        stage = "MATCH COMPLETE" if final else f"ROUND {match.round_number} COMPLETE"
+        title = "DRAW" if winner == -1 else f"{SIDE_ART[winner].upper()} WINS"
+        self.text(stage, center, y+45*s, 17, FEED, "label", CENTER)
+        self.text(title, center, y+103*s, 63, accent, "heavy", CENTER).node().setShadow(.045, .07)
+        self.text("FINAL SCORE" if final else "MATCH SCORE", center, y+143*s, 15, FEED, "label", CENTER)
+
+        for side, wins in enumerate(match.round_wins):
+            left = x+(35+side*285)*s
+            self.plate(left, y+159*s, 273*s, 87*s, TEAM[side], strong=side == winner)
+            self.kit.draw(f"{SIDE_ART[side]}_crest", (left+15*s, y+180*s, 41*s, 44*s))
+            team_top = 211 if game.human(side) else 198
+            self.text(SIDE_ART[side].upper(), left+68*s, y+team_top*s, 25, INK, "label")
+            if not game.human(side):
+                self.text(game.ai_planner(side).label, left+68*s, y+223*s, 16, FEED)
+            self.text(wins, left+249*s, y+224*s, 57, TEAM[side], "heavy", RIGHT)
+
+        if final:
+            self.text(f"{match.round_number} of {MAX_ROUNDS} rounds played", center, y+281*s, 19, FEED,
+                      "body", CENTER)
+        else:
+            self.text(match.reason, center, y+279*s, 20, INK, "label", CENTER)
+            detail = ("Next round starts automatically" if game.mode == "showdown" else
+                      f"{match.round_number+1} upgrades per team next round")
+            self.text(detail, center, y+306*s, 17, FEED, "body", CENTER)
+
+        self.button("Home", (x+35*s, y+h-72*s, 170*s, 52*s), game.home, size=18)
+        self.button("Rematch" if final else "Next round", (x+219*s, y+h-72*s, w-254*s, 52*s),
+                    game.rematch if final else game.next_round, primary=True, arrow=True, size=21)
 
     def overlay(self, game):
         phase = game.match.phase

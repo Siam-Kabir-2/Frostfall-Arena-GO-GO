@@ -53,6 +53,8 @@ class GoGoStage:
         self.blinks = {}
         self.tiles = {}
         self.labels = []
+        self.upgrades = {}
+        self.upgrade_labels = []
         for node in (arena.water, arena.background_ice, arena.coast.root, *arena.pieces, *arena.teams, *arena.shadows):
             node.hide()
         for tile in arena.tiles:
@@ -102,6 +104,8 @@ class GoGoStage:
         sprite = make_sprite(root, self.atlases[side], hero)
         return Actor(root, sprite, -1 if side else 1)
 
+    def animate_upgrade(self, side, recruit):
+        self.upgrades[side, id(recruit)] = (recruit, 0.)
 
     def pose(self, unit, x, y, moving):
         if unit is not None:
@@ -125,6 +129,7 @@ class GoGoStage:
                      for side, team in enumerate(match.sides) for (col, row), recruit in team.field.items()]
         alive = set()
         self.labels.clear()
+        self.upgrade_labels.clear()
         for side, recruit, x, y, health, shield, fall, unit in units:
             standing = unit is None or unit.hp > 0
             key = side, id(recruit)
@@ -151,6 +156,13 @@ class GoGoStage:
                 opacity = clamp((.74-fall)/.25, 0., 1.) if not standing else 1.
                 node.setColorScale(1., 1., 1., opacity)
                 node.setScale(1.)
+                if standing and key in self.upgrades:
+                    progress = self.upgrades[key][1]/UPGRADE_DURATION
+                    self.upgrade_labels.append((Point3(position), recruit.rank, progress))
+                    pulse = sin(pi*min(1., progress*1.8))
+                    node.setScale(1+.15*pulse)
+                    node.setColorScale(1+.18*pulse, 1+.12*pulse, 1-.15*pulse, 1.)
+                    position.z += .13*pulse
             moving = unit is not None and standing and unit.glide_left and not (fading or unit.knocked_back)
             if moving:
                 direction = unit.x-unit.glide_from[0]
@@ -176,10 +188,12 @@ class GoGoStage:
         if self.effects:
             self.effects.removeNode()
             self.effects = None
-        if not match.effects:
+        if not match.effects and not self.upgrade_labels:
             return
         rays = LineSegs("Go Go arena effects")
         rays.setThickness(2.5)
+        for origin, _, progress in self.upgrade_labels:
+            self.draw_upgrade(rays, origin, progress)
         for effect in match.effects:
             if effect.blink_actor is not None:
                 self.draw_night_slip(rays, effect)
@@ -199,6 +213,19 @@ class GoGoStage:
         self.effects.setTransparency(TransparencyAttrib.MAlpha)
         self.effects.setDepthWrite(False)
 
+    def draw_upgrade(self, rays, origin, progress):
+        fade = min(1., progress*10)*(1-progress)**.75
+        radius = .22+.35*ease(progress)
+        rays.setColor(*GOLD[:3], fade)
+        for index, (x, y) in enumerate(circle(radius, 24)+[(radius, 0)]):
+            (rays.moveTo if index == 0 else rays.drawTo)(origin+Point3(x, y, .045))
+        for index in range(7):
+            angle = tau*index/7+progress*.65
+            spread = radius*(.83+.20*(index % 2))
+            spark = origin+Point3(cos(angle)*spread, sin(angle)*spread, .13+progress*(.7+.16*(index % 3)))
+            rays.setColor(1, .92, .67, fade*.92)
+            rays.moveTo(spark)
+            rays.drawTo(spark+Point3(0, 0, .12*(1-progress)))
 
     def draw_night_slip(self, rays, effect):
         progress = effect.blink_progress
@@ -231,6 +258,8 @@ class GoGoStage:
 
     def update(self, match, dt, *, selected=None, hover=None):
         self.arena.world_clock += dt
+        self.upgrades = {key: (recruit, elapsed+dt) for key, (recruit, elapsed) in self.upgrades.items()
+                         if elapsed+dt < UPGRADE_DURATION}
         for (col, row), tile in self.tiles.items():
             lift = .028 if hover == (col, row) and selected else 0.
             tile.root.setZ(sin(self.arena.world_clock*1.2 + (row*COLS+col)*.61)*.008 + lift)

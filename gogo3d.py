@@ -108,6 +108,7 @@ class GoGo3D(BoardWindow):
         self.reset_draft()
 
     def reset_draft(self):
+        self.stage.upgrades.clear()
         self.sounds.stop_effects()
         self.sounds.set_scene(True)
         self.sounds.play("draft")
@@ -132,6 +133,7 @@ class GoGo3D(BoardWindow):
 
     def home(self):
         self.stop_search()
+        self.stage.upgrades.clear()
         self.sounds.stop_effects()
         self.sounds.set_scene(False)
         self.sounds.play("back")
@@ -285,6 +287,8 @@ class GoGo3D(BoardWindow):
         else:
             self.selected = None
             self.notice_time = 0.
+            if kind == "upgrade":
+                self.stage.animate_upgrade(side, self.match.sides[side].field[cell])
             self.sounds.play({"card": "buy", "return": "place", "upgrade": "upgrade", "unit": "place"}[kind])
             self.hud_clock = 0.
         return True
@@ -369,6 +373,7 @@ class GoGo3D(BoardWindow):
                 elif isinstance(action, UpgradeAction):
                     unit = self.match.sides[side].field[action.cell]
                     self.ai_move[side] = f"Upgraded {ROSTER[unit.hero].name} to rank {unit.rank}."
+                    self.stage.animate_upgrade(side, unit)
                     self.sounds.play("upgrade", .69)
                 elif isinstance(action, RedeployAction):
                     unit = self.match.sides[side].field[action.cell]
