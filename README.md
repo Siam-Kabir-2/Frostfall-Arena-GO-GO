@@ -1,14 +1,120 @@
+<p align="center">
+  <img src="assets/crystal-title-badge.png" width="460" alt="Frostfall Arena Go Go logo">
+</p>
+
 # Frostfall Arena Go Go 3D
 
-Run **Play Arena Go Go 3D.cmd** on Windows. It can use the existing Frostfall Arena virtual environment. For a standalone install, run `python -m pip install -r requirements.txt` and then `python gogo3d.py`.
+**A local 3D penguin auto-battler built with Python and Panda3D.**
 
-Choose **Human vs Human** to share the screen, **Human vs AI** to play Coral against Azure, or **AI vs AI** to watch a match. Pick Minimax, MCTS, or Greedy for the AI opponent in **Human vs AI**, or set both teams separately in **AI vs AI**. In **AI vs AI**, both teams draw from the same public deck. Click or drag a card from your dock to a tile on your side. Click a deployed penguin and another friendly tile to reposition it. Use **Upgrade** and then select a highlighted penguin to raise its rank by one. Right-click a tile to sell its penguin. In human versus CPU, **Space** locks your draft. **V** switches the camera, **P** pauses, **F10** fits the window to the desktop, and **F11** toggles fullscreen.
+Spend shells to recruit a squad, arrange your formation on an 8 × 5 ice board, and upgrade the heroes you want to keep. After the 3–2–1 countdown, both teams fight automatically. A well-placed Glacier can shield the front line, while Wisp can blink behind it to reach a vulnerable marksman.
 
-Each team gets one, two, and three upgrades before rounds one, two, and three, respectively. A penguin can raise its rank once per round. The first team to two round wins takes the match. If all three rounds are played, the higher win count takes the match. The selected algorithms pick cards, starting positions, and upgrades. Both squads use the same targeting and A* movement in combat. The two center columns open to both teams in combat. Each tile holds one penguin, and units keep pursuing a nearby target while there is a usable attack position. Blinks and knockbacks also use open tiles.
+[Quick start](#quick-start) · [How to play](#how-to-play) · [Hero roster](#hero-roster) · [AI strategies](#ai-strategies) · [Project structure](#project-structure) · [Game guide PDF](output/pdf/Frostfall%20Arena%20Go%20Go%203D%20-%20Game%20Guide.pdf)
 
-The first draft has a 32-second timer beside the draft controls and can end sooner if both teams are Ready. If time expires before both sides deploy a penguin, the draft waits for them. In rounds two and three, redeployment is untimed. Return cards retain their rank and cost no shells to place. The shop reopens after your lineup is back, and both teams press Ready to finish. Each battle starts with a three-second countdown, then the battle clock counts down from 00:25. Combat ends on elimination or at the time limit, when the higher remaining health percentage wins.
+## Quick start
 
-The home menu loops `assets/home-background.mp4` silently. Both match views use `assets/aurora-arena.png` as a full-window backdrop. The backdrops keep their proportions as the window resizes. The 3D board uses six base designs from `assets/glowing-ice-tiles.png`, with red and blue for valid team destinations, green for hover, gold for upgrades, and corner marks for a selected penguin's tile. The match interface uses `assets/coral-azure-ui.png`, with `assets/dual-team-hud-bar.png` for the draft frame and `assets/icy-battle-crest.png` for the combat lineups. Coral uses the fire sprites and Azure uses the ice sprites. Each team's five classes have matching card portraits and six frames each for idle, walk, attack, hurt, and defeat. The penguin source PNGs are in `assets/sprite-sheets`. To rebuild the penguin atlases and card portraits with Pygame installed, run `python build_sprite_atlases.py`.
+On Windows, open [Play Arena Go Go 3D.cmd](Play%20Arena%20Go%20Go%203D.cmd). The launcher can use the project's virtual environment, the sibling Frostfall Arena environment, or a Python installation with Panda3D available.
+
+For a fresh checkout, run these commands in PowerShell from the project folder. Use Python 3.10 or newer with a wheel for the pinned Panda3D version.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe gogo3d.py
+```
+
+The repository includes the game art, sound effects, and menu video. Normal play requires the runtime in [requirements.txt](requirements.txt).
+
+## Game modes
+
+| Mode | Who drafts | Setup |
+| --- | --- | --- |
+| **Human vs Human** | Two players share one screen and mouse. | Each team gets a randomly drawn hand. |
+| **Human vs AI** | You play Coral against Azure. | Pick Minimax, MCTS, or Greedy for Azure. MCTS is the default. |
+| **AI vs AI** | Both squads draft automatically. | Choose each team's algorithm separately. Both teams draw from the same public card sequence. |
+
+## How to play
+
+1. **Draft.** Each team starts with **15 shells**, **4 shop cards**, and space for **5 deployed heroes**. Click or drag a card onto an empty tile on your side. Buying a card spends shells and fills its slot from the next-card preview.
+2. **Set your formation.** Move a deployed hero to another friendly tile or swap it with a teammate already there. Right-click an unselected deployed hero to sell it and recover part of its original cost.
+3. **Upgrade and Ready.** Click **Upgrade** and choose a gold-highlighted hero. Each team receives **1, 2, then 3 upgrade uses** across the rounds. Each hero can upgrade once per round, up to **rank 4**. Both teams can lock in early. If the opening **32-second draft timer** expires with an empty team, the game waits for both sides to field a hero.
+4. **Watch the battle.** After **3–2–1**, the combat clock counts down from **00:25**. Both teams can enter the center columns. The round ends on elimination or at the time limit. At timeout, the higher percentage of remaining team health wins. A tie awards neither team a point.
+5. **Redeploy or rematch.** The first team to two wins takes the match. After three rounds, the team with more wins takes the match, or the match ends in a draw if the scores are equal. For rounds two and three, each team redeploys its returning heroes for free, keeps their ranks and remaining shells, and presses **Ready** when finished. Redeployment is untimed.
+
+### Controls
+
+| Input | Action |
+| --- | --- |
+| **Left click / drag** | Buy, deploy, move, swap, or select an upgrade target. |
+| **Right click** | Cancel the current selection, or sell a deployed hero when nothing is selected. |
+| **1 / 2 / 3** | From Home or How to Play, open Human vs AI, Human vs Human, or AI vs AI. |
+| **Space** | Start from AI setup, toggle Coral Ready in Human vs AI, or advance from results. |
+| **U** | Toggle Coral's Upgrade selection when Coral is human-controlled. |
+| **V** | Switch between angled and overhead views. |
+| **P / Esc** | Pause or resume with **P**. **Esc** closes a dialog, clears a selection, or pauses an active match. |
+| **F10 / F11** | Fit the window to the desktop or toggle borderless fullscreen. |
+
+## Hero roster
+
+Stats below are for **rank 1**. Each higher rank adds **31% of base HP**, **27% of base attack damage**, and **30% of the base skill amount**. Both teams use the same stats and abilities with different sprite artwork.
+
+| Hero | Role | Cost | HP | Damage / interval | Skill |
+| --- | --- | ---: | ---: | --- | --- |
+| Glacier | Tank | 3 | 350 | 23 / 1.12 s | **Ice Dome** shields Glacier and nearby allies. |
+| Cinder | Mage | 4 | 170 | 24 / 1.15 s | **Snowfire** hits the target and nearby enemies. |
+| Rime | Marksman | 3 | 158 | 24 / 0.63 s | **Frost Volley** hits and slows a target. |
+| Wisp | Assassin | 3 | 178 | 36 / 0.85 s | **Night Slip** blinks beside a backline target when a landing tile is open. |
+| Tide | Fighter | 2 | 240 | 31 / 0.94 s | **Tidal Rush** deals damage, stuns, attempts a knockback, and heals Tide. |
+
+The [game guide](output/pdf/Frostfall%20Arena%20Go%20Go%203D%20-%20Game%20Guide.pdf) has preferred placements, ranges, cooldowns, skill values, and stat tables for ranks 1–4.
+
+## AI strategies
+
+The selected algorithm decides **how the AI drafts**. During combat, every squad uses the same targeting, ability, damage, and movement rules.
+
+| Planner | How it chooses |
+| --- | --- |
+| **Greedy** | Takes the highest-rated legal action using an immediate evaluation of the draft. |
+| **Minimax** | Searches draft moves and counterpicks with iterative deepening and alpha-beta pruning. In private drafts it samples a plausible opponent hand. |
+| **MCTS** | Samples continuations, simulates battles, and prefers actions supported by its rollouts. |
+
+To launch a seeded match directly or compare planners, run:
+
+```powershell
+.\.venv\Scripts\python.exe gogo3d.py --mode cpu --azure-ai mcts --seed 42
+.\.venv\Scripts\python.exe gogo3d.py --mode showdown --coral-ai minimax --azure-ai greedy --mute
+```
+
+## Project structure
+
+```mermaid
+flowchart LR
+    A[Player input or AI draft] --> B["Controller · gogo3d.py"]
+    B --> C["Match state · arena.py"]
+    C --> D["Pathfinding · navigation.py"]
+    C --> E[Board, HUD, and sound]
+```
+
+| Source | Responsibility |
+| --- | --- |
+| [gogo3d.py](gogo3d.py) | Application entry point, input, modes, camera, match loop, and background AI work. |
+| [arena.py](arena.py) | Hero data, draft legality, economy, combat, ranks, timers, and scoring. |
+| [navigation.py](navigation.py) · [planners.py](planners.py) | A* approach routes and the three AI draft algorithms. |
+| [gogo_hud.py](gogo_hud.py) · [gogo_ui_kit.py](gogo_ui_kit.py) | Screen layouts, clickable controls, HUD feedback, and sprite-sheet regions. |
+| [gogo_stage.py](gogo_stage.py) · [gogo_tiles.py](gogo_tiles.py) · [sprites.py](sprites.py) | Board geometry, tile selection, fighter sprites, and combat animations. |
+| [gogo_scenery.py](gogo_scenery.py) · [gogo_sound.py](gogo_sound.py) | Home video and arena backdrop, plus the wind and event cue mixer. |
+| [frostfall/](frostfall/) | Shared Panda3D window, scene, shaders, fonts, and HUD primitives used by Go Go 3D. |
+
+The rules advance in fixed **1/60-second steps**. The controller sends a copy of the draft to the AI worker and applies its chosen action to the live match on the main thread. The HUD and 3D scene display the resulting state.
+
+## Rebuild assets
+
+| Task | Command | Extra tools |
+| --- | --- | --- |
+| Regenerate sprite atlases and card portraits | `python build_sprite_atlases.py` | Pygame |
+| Regenerate the bundled WAV effects | `python build_sound_effects.py` | Runtime dependencies |
+| Render a replacement home loop | `python build_home_loop.py source.mp4 home-loop.mp4` | FFmpeg and ffprobe |
+
+Run the builders with the same Python environment as the game. The home-loop builder writes a new MP4 that you can preview before replacing `assets/home-background.mp4`.
 
 ## Development history
 
