@@ -6,7 +6,7 @@ from math import cos, pi, sin, tau
 from panda3d.core import LineSegs, Point2, Point3, TransparencyAttrib
 
 from arena import COLS, HURT_ANIMATION, ROSTER, ROWS, clamp
-from frostfall.stage3d import FLOE, GOLD, TOP, circle, ease
+from gogo_runtime.geometry import FLOE, GOLD, TOP, circle, ease
 from gogo_tiles import BoardTile, TileSkin, load_tile_skins
 from sprites import ATTACK, DEFEAT, FRAMES_PER_POSE, HURT, IDLE, WALK, load_atlases, make_sprite, set_frame
 
@@ -43,10 +43,11 @@ class Actor:
 
 
 class GoGoStage:
-    def __init__(self, arena, loader):
-        self.arena = arena
-        self.root = arena.root.attachNewNode("Go Go sprite penguins")
-        self.root.setShaderOff(1)
+    def __init__(self, render, loader):
+        self.root = render.attachNewNode("Go Go 3D arena")
+        self.overlay = self.root.attachNewNode("Go Go combat effects")
+        self.sprite_root = self.root.attachNewNode("Go Go sprite penguins")
+        self.world_clock = 0.
         self.atlases = load_atlases(loader)
         self.actors = {}
         self.effects = None
@@ -55,12 +56,7 @@ class GoGoStage:
         self.labels = []
         self.upgrades = {}
         self.upgrade_labels = []
-        for node in (arena.water, arena.background_ice, arena.coast.root, *arena.pieces, *arena.teams, *arena.shadows):
-            node.hide()
-        for tile in arena.tiles:
-            tile.root.hide()
-        board = arena.root.attachNewNode("Go Go textured board")
-        board.setShaderOff(1)
+        board = self.root.attachNewNode("Go Go textured board")
         skins = load_tile_skins(loader)
         for index in range(COLS*ROWS):
             row, col = divmod(index, COLS)
@@ -100,7 +96,7 @@ class GoGoStage:
                 tile.show_skin((TileSkin.CORAL, TileSkin.AZURE)[side])
 
     def create_actor(self, side, hero):
-        root = self.root.attachNewNode("Penguin")
+        root = self.sprite_root.attachNewNode("Penguin")
         sprite = make_sprite(root, self.atlases[side], hero)
         return Actor(root, sprite, -1 if side else 1)
 
@@ -117,7 +113,7 @@ class GoGoStage:
                 return action_frame(ATTACK, 1-unit.attack_pose/unit.attack_span)
             if moving:
                 return action_frame(WALK, 1-unit.glide_left/unit.glide_time)
-        return IDLE+int(self.arena.world_clock*8+x*.3+y*.2)%FRAMES_PER_POSE
+        return IDLE+int(self.world_clock*8+x*.3+y*.2)%FRAMES_PER_POSE
 
     def sync_actors(self, match):
         fighters = match.phase != "prep"
@@ -209,7 +205,7 @@ class GoGoStage:
             for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                 rays.moveTo(target + Point3(dx*radius*.55, dy*radius*.55, .02))
                 rays.drawTo(target + Point3(dx*radius, dy*radius, .10))
-        self.effects = self.arena.overlay.attachNewNode(rays.create())
+        self.effects = self.overlay.attachNewNode(rays.create())
         self.effects.setTransparency(TransparencyAttrib.MAlpha)
         self.effects.setDepthWrite(False)
 
@@ -257,12 +253,12 @@ class GoGoStage:
                 (rays.moveTo if i == 0 else rays.drawTo)(point)
 
     def update(self, match, dt, *, selected=None, hover=None):
-        self.arena.world_clock += dt
+        self.world_clock += dt
         self.upgrades = {key: (recruit, elapsed+dt) for key, (recruit, elapsed) in self.upgrades.items()
                          if elapsed+dt < UPGRADE_DURATION}
         for (col, row), tile in self.tiles.items():
             lift = .028 if hover == (col, row) and selected else 0.
-            tile.root.setZ(sin(self.arena.world_clock*1.2 + (row*COLS+col)*.61)*.008 + lift)
+            tile.root.setZ(sin(self.world_clock*1.2 + (row*COLS+col)*.61)*.008 + lift)
         self.selection(match, selected, hover)
         self.blinks = {(effect.side, id(effect.blink_actor)): effect
                        for effect in match.effects if effect.blink_actor is not None}
@@ -273,8 +269,8 @@ class GoGoStage:
         near, far = Point3(), Point3()
         if not pointer or not lens.extrude(Point2(*pointer), near, far):
             return None
-        near = self.arena.root.getRelativePoint(camera, near)
-        far = self.arena.root.getRelativePoint(camera, far)
+        near = self.root.getRelativePoint(camera, near)
+        far = self.root.getRelativePoint(camera, far)
         ray = far - near
         if abs(ray.z) < .0001:
             return None

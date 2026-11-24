@@ -5,8 +5,8 @@ from pathlib import Path
 from panda3d.core import CardMaker, Filename, TextNode, Texture, TransparencyAttrib
 
 from arena import COUNTDOWN, HAND, MAX_ROUNDS, ROSTER
-from frostfall.hud3d import Button, FEED, HUD, INK, MUTED, NIGHT
-from frostfall.stage3d import GOLD, TEAM, TOP, ease
+from gogo_runtime.geometry import GOLD, TEAM, TOP, ease
+from gogo_runtime.hud import Button, FEED, HudLayout, INK, MUTED, NIGHT
 from gogo_stage import hero_tint, world
 from gogo_ui_kit import (
     ArenaKit, BATTLE_FIELDS, BATTLE_REGION, CORAL_WIDTH, CREST_WIDTH,
@@ -77,7 +77,7 @@ def dock_layout(width, height, scale):
             (left+coral_w, floor, badge_w, dock_h))
 
 
-class GoGoHUD(HUD):
+class GoGoHUD(HudLayout):
     def __init__(self, base, fonts):
         super().__init__(base, fonts)
         self.card_slots = []
@@ -431,7 +431,7 @@ class GoGoHUD(HUD):
     def units(self, game):
         s = self.s
         height = STANDING_HEIGHT-.05+.105*game.view_amount
-        headroom = game.cam.getQuat(game.arena.root).getUp()*height
+        headroom = game.cam.getQuat(game.stage.root).getUp()*height
         for point, side, recruit, hp, shield in game.stage.labels:
             screen = game.project(point+headroom)
             if not screen:

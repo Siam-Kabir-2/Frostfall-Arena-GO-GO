@@ -8,7 +8,7 @@ from panda3d.core import (
     GeomVertexWriter, NodePath, Texture,
 )
 
-from frostfall.stage3d import TOP
+from gogo_runtime.geometry import TOP
 
 SHEET = Path(__file__).resolve().parent / "assets" / "glowing-ice-tiles.png"
 # Solid artwork in the 2172 × 724 sheet. The airy glow is outside these bounds.

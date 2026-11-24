@@ -1,4 +1,4 @@
-"""Playable Go Go edition in the original Frostfall Arena 3D presentation."""
+"""Launch Frostfall Arena Go Go 3D."""
 
 import argparse
 import sys
@@ -8,9 +8,9 @@ from direct.task import Task
 from panda3d.core import PerspectiveLens, Point2, Point3, WindowProperties, loadPrcFileData
 
 from arena import CLOCK_EPSILON, COLS, ROSTER, ROWS, STEP, Match, RedeployAction, UpgradeAction
-from frostfall.client3d import BoardWindow
-from frostfall.stage3d import TOP, ease
 from gogo_hud import GoGoHUD, dock_layout, match_header_layout, ui_scale
+from gogo_runtime.geometry import TOP, ease
+from gogo_runtime.window import BoardWindow
 from gogo_scenery import ArenaBackdrop
 from gogo_sound import GoGoSounds
 from gogo_stage import GoGoStage, world
@@ -35,8 +35,8 @@ class GoGo3D(BoardWindow):
         self.mode = None
         self.modal = None
         self.match = Match()
-        self.stage = GoGoStage(self.arena, self.loader)
-        self.arena.root.hide()
+        self.stage = GoGoStage(self.render, self.loader)
+        self.stage.root.hide()
         self.ai_algorithms = ["minimax", "mcts"]
         self.cpu_algorithm = "mcts"
         self.selected = None
@@ -101,7 +101,7 @@ class GoGo3D(BoardWindow):
     def start(self, mode):
         self.stop_search()
         self.mode = mode
-        self.arena.root.show()
+        self.stage.root.show()
         self.modal = None
         self.match = Match(self.seed, public_draft=mode == "showdown", countdown=True)
         self.first_turn = 1-self.first_turn
@@ -138,7 +138,7 @@ class GoGo3D(BoardWindow):
         self.sounds.set_scene(False)
         self.sounds.play("back")
         self.mode = self.modal = self.selected = self.drag_start = None
-        self.arena.root.hide()
+        self.stage.root.hide()
         self.hud_clock = 0.
 
     def open_modal(self, name):
@@ -452,7 +452,6 @@ class GoGo3D(BoardWindow):
         blend = ease(self.view_amount)
         self.camera.setPos(angled+(overhead-angled)*blend)
         self.camera.lookAt(0, 0, .035)
-        self.arena.root.setShaderInput("eye", self.camera.getPos())
         # Keep the cove visible to each side of the front-facing board.
         gutter = 25*scale if compact else max(25*scale, width*.17*(1-blend))
         left, right = gutter, width-gutter
@@ -461,11 +460,11 @@ class GoGo3D(BoardWindow):
         lower_left, _, status = dock_layout(width, height, scale)
         bottom = min(lower_left[1], status[1])-17*scale
         cols, rows = (-.12, COLS+.12), (-.12, ROWS+.12)
-        corners = [self.cam.getRelativePoint(self.arena.root, world(col, row, z))
+        corners = [self.cam.getRelativePoint(self.stage.root, world(col, row, z))
                    for col in cols for row in rows for z in (-.205, TOP)]
         # Camera-facing sprites need headroom that the tile corners alone cannot give them.
         for col in (.5, COLS-.5):
-            foot = self.cam.getRelativePoint(self.arena.root, world(col, .5))
+            foot = self.cam.getRelativePoint(self.stage.root, world(col, .5))
             corners.append(foot+Point3(0, 0, STANDING_HEIGHT+.19))
         # At focal length one, project onto the film plane before calculating the fit.
         film = [(p.x/p.y, p.z/p.y) for p in corners]
@@ -479,7 +478,7 @@ class GoGo3D(BoardWindow):
 
     def project(self, point, *, visible=True):
         normalized = Point2()
-        inside = self.lens.project(self.cam.getRelativePoint(self.arena.root, point), normalized)
+        inside = self.lens.project(self.cam.getRelativePoint(self.stage.root, point), normalized)
         if visible and not inside:
             return None
         width, height = self.size

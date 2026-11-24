@@ -4,7 +4,7 @@ from functools import lru_cache
 from math import hypot, pi, sin
 from random import Random
 
-from .stage3d import Mesh, mix
+from .geometry import Mesh, mix
 
 
 PANEL = ((.13, .40, .54, 1), (.026, .109, .171, 1), (.31, .73, .84, 1))

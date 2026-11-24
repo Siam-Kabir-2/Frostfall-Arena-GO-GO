@@ -12,7 +12,7 @@ Spend shells to recruit a squad, arrange your formation on an 8 × 5 ice board, 
 
 ## Quick start
 
-On Windows, open [Play Arena Go Go 3D.cmd](Play%20Arena%20Go%20Go%203D.cmd). The launcher can use the project's virtual environment, the sibling Frostfall Arena environment, or a Python installation with Panda3D available.
+On Windows, open [Play Arena Go Go 3D.cmd](Play%20Arena%20Go%20Go%203D.cmd). The launcher checks this project's `.venv` first, then tries a system Python installation with Panda3D available. All game source and assets are bundled in this repository.
 
 For a fresh checkout, run these commands in PowerShell from the project folder. Use Python 3.10 or newer with a wheel for the pinned Panda3D version.
 
@@ -102,7 +102,7 @@ flowchart LR
 | [gogo_hud.py](gogo_hud.py) · [gogo_ui_kit.py](gogo_ui_kit.py) | Screen layouts, clickable controls, HUD feedback, and sprite-sheet regions. |
 | [gogo_stage.py](gogo_stage.py) · [gogo_tiles.py](gogo_tiles.py) · [sprites.py](sprites.py) | Board geometry, tile selection, fighter sprites, and combat animations. |
 | [gogo_scenery.py](gogo_scenery.py) · [gogo_sound.py](gogo_sound.py) | Home video and arena backdrop, plus the wind and event cue mixer. |
-| [frostfall/](frostfall/) | Shared Panda3D window, scene, shaders, fonts, and HUD primitives used by Go Go 3D. |
+| [gogo_runtime/](gogo_runtime/) | Go Go 3D's Panda3D window, input handling, HUD primitives, ice panels, geometry, and edge smoothing. |
 
 The rules advance in fixed **1/60-second steps**. The controller sends a copy of the draft to the AI worker and applies its chosen action to the live match on the main thread. The HUD and 3D scene display the resulting state.
 
