@@ -5,7 +5,7 @@ from math import log, sqrt
 from random import Random
 from time import perf_counter
 
-from arena import ASSASSIN, COLS, MAGE, MARKSMAN, ROSTER, SHELLS, TANK, Match
+from arena import ASSASSIN, COLS, MAGE, MARKSMAN, ROSTER, TANK, Match, ShopCard
 
 SEARCH_BUDGET = .65
 
@@ -19,11 +19,11 @@ class Decision:
 
 def draft_snapshot(match, seed=0):
     snapshot = Match(seed, public_draft=match.public_draft, effects=False)
+    snapshot.public_deck = match.public_deck
     snapshot.round_number = match.round_number
     snapshot.round_wins = match.round_wins.copy()
     snapshot.sides = [replace(team, hand=team.hand.copy(),
-                              field={cell: replace(unit) for cell, unit in team.field.items()},
-                              returning=[replace(unit) if unit is not None else None for unit in team.returning])
+                              field={cell: replace(unit) for cell, unit in team.field.items()})
                       for team in match.sides]
     return snapshot
 
@@ -33,9 +33,18 @@ def sample_opponent(state, side, rng):
     opponent = state.sides[rival]
     if state.public_draft or opponent.ready:
         return
-    opponent.hand = state.start_hand(rival) if opponent.shells == SHELLS and not opponent.field else (
+    if opponent.carried_cards:
+        cards = state.starting_cards(state.start_hand(rival), rng.randrange(len(ROSTER)), opponent.carried_cards)
+        opponent.hand, opponent.next_card = cards[:-1], cards[-1]
+        # Sample which slots were bought. The previous squad was visible in combat.
+        for _ in range(opponent.draws):
+            opponent.hand[rng.randrange(len(opponent.hand))] = opponent.next_card
+            opponent.next_card = state.draw_private_card(rng, opponent.next_card)
+        return
+    hand = state.start_hand(rival) if not opponent.draws else (
         rng.choices(range(len(ROSTER)), k=len(opponent.hand)))
-    opponent.next_card = rng.randrange(len(ROSTER))
+    opponent.hand = [ShopCard(hero) for hero in hand]
+    opponent.next_card = ShopCard(rng.randrange(len(ROSTER)))
 
 
 def battlefield_value(match, side):
@@ -59,7 +68,6 @@ def recruit_value(recruit):
 def lineup_value(match, side):
     team, enemies = match.sides[side], match.sides[1-side]
     score = (.70 if not team.ready else .20)*team.shells
-    score += .78*sum(recruit_value(unit) for unit in team.returning if unit is not None)
     for (x, y), recruit in team.field.items():
         hero = ROSTER[recruit.hero]
         depth = x if side == 0 else COLS-1-x
@@ -151,8 +159,10 @@ def choose_mcts(match, side, budget=SEARCH_BUDGET, iterations=28):
         return Decision()
     root = Node()
     rival = 1-side
+    hand_signature = sum((i+1)*(card.hero+len(ROSTER)*(card.rank-1))
+                         for i, card in enumerate(match.sides[side].hand))
     rng = Random(match.round_number*131 + (match.sides[side].draws+1)*51+(match.sides[rival].draws+1)*273+
-                 sum((i+1)*card for i, card in enumerate(match.sides[side].hand)))
+                 hand_signature)
     end = perf_counter()+budget
     maximum_depth = 0
     while root.visits < iterations and (root.visits == 0 or perf_counter() < end):

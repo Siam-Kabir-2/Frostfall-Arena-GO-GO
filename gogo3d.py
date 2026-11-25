@@ -7,7 +7,7 @@ from math import copysign
 from direct.task import Task
 from panda3d.core import PerspectiveLens, Point2, Point3, WindowProperties, loadPrcFileData
 
-from arena import CLOCK_EPSILON, COLS, ROSTER, ROWS, STEP, Match, RedeployAction, UpgradeAction
+from arena import CLOCK_EPSILON, COLS, ROSTER, ROWS, STEP, Match, UpgradeAction
 from gogo_hud import GoGoHUD, dock_layout, match_header_layout, ui_scale
 from gogo_runtime.geometry import TOP, ease
 from gogo_runtime.window import BoardWindow
@@ -238,9 +238,6 @@ class GoGo3D(BoardWindow):
         if self.modal or not self.human(side) or self.match.phase != "prep":
             return
         team = self.match.sides[side]
-        if team.to_deploy:
-            self.message(f"Place your {team.to_deploy} remaining penguins before Ready.")
-            return
         if not team.field:
             self.message("Deploy a penguin before locking the draft.")
             return
@@ -274,8 +271,6 @@ class GoGo3D(BoardWindow):
             return False
         if kind == "card":
             message = self.match.buy(side, origin, cell)
-        elif kind == "return":
-            message = self.match.redeploy(side, origin, cell)
         elif kind == "upgrade":
             message = self.match.upgrade(side, cell)
         elif cell == origin:
@@ -289,7 +284,7 @@ class GoGo3D(BoardWindow):
             self.notice_time = 0.
             if kind == "upgrade":
                 self.stage.animate_upgrade(side, self.match.sides[side].field[cell])
-            self.sounds.play({"card": "buy", "return": "place", "upgrade": "upgrade", "unit": "place"}[kind])
+            self.sounds.play({"card": "buy", "upgrade": "upgrade", "unit": "place"}[kind])
             self.hud_clock = 0.
         return True
 
@@ -375,12 +370,9 @@ class GoGo3D(BoardWindow):
                     self.ai_move[side] = f"Upgraded {ROSTER[unit.hero].name} to rank {unit.rank}."
                     self.stage.animate_upgrade(side, unit)
                     self.sounds.play("upgrade", .69)
-                elif isinstance(action, RedeployAction):
-                    unit = self.match.sides[side].field[action.cell]
-                    self.ai_move[side] = f"Repositioned {ROSTER[unit.hero].name}."
-                    self.sounds.play("place", .69)
                 else:
-                    self.ai_move[side] = f"Deployed {ROSTER[action.hero].name}."
+                    card = action.card
+                    self.ai_move[side] = f"Deployed {ROSTER[card.hero].name} at rank {card.rank}."
                     self.sounds.play("buy", .69)
             if self.mode == "showdown":
                 self.ai_turn = 1-side
@@ -399,13 +391,21 @@ class GoGo3D(BoardWindow):
             return
         self.notice_time = max(0., self.notice_time-dt)
         self.tick_ai(dt)
+        # The battle clock catches up after a slow frame. The post-battle animation
+        # advances in visible steps so one such frame cannot hide the final defeat.
+        if self.match.phase == "aftermath":
+            dt = min(dt, .10)
         self.accumulator += dt
         self.sync_phase()
         while self.accumulator+CLOCK_EPSILON >= STEP:
             self.accumulator = max(0., self.accumulator-STEP)
-            previous_count = self.match.seconds_left if self.match.phase == "countdown" else None
+            previous_phase = self.match.phase
+            previous_count = self.match.seconds_left if previous_phase == "countdown" else None
             self.sounds.step_battle(self.match)
             self.sync_phase()
+            if self.match.phase == "aftermath" and previous_phase != "aftermath":
+                self.accumulator = 0.
+                break
             if previous_count is not None and self.match.phase == "countdown" and self.match.seconds_left < previous_count:
                 self.sounds.play("countdown")
                 self.hud_clock = 0.
@@ -426,6 +426,8 @@ class GoGo3D(BoardWindow):
             return
         if self.match.phase == "fight":
             self.sounds.play("fight")
+            return
+        if self.match.phase not in ("round_end", "end"):
             return
         final = self.match.phase == "end"
         winner = self.match.winner if final else self.match.round_winner
@@ -549,7 +551,7 @@ def main():
     parser.add_argument("--coral-ai", choices=DRAFT_PLANNERS, default="minimax")
     parser.add_argument("--azure-ai", choices=DRAFT_PLANNERS, default="mcts", help="Azure's draft algorithm in either AI mode")
     parser.add_argument("--mute", action="store_true")
-    parser.add_argument("--seed", type=int, help="repeat the starting hands in player modes")
+    parser.add_argument("--seed", type=int, help="repeat the shop deals for each round in any mode")
     args = parser.parse_args()
     x, y, w, h = initial_window()
     loadPrcFileData("Frostfall Arena Go Go", f"""

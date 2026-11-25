@@ -14,11 +14,17 @@ STEP = 1 / 60
 CLOCK_EPSILON = 1e-9
 NIGHT_SLIP_DURATION = .48
 ATTACK_ANIMATION, SPELL_ANIMATION, HURT_ANIMATION = .30, .48, .24
+DEFEAT_ANIMATION, DEFEAT_FADE = .38, .25
+DEFEAT_VISIBLE = .74
+AFTERMATH_DURATION = DEFEAT_VISIBLE + .16
 HAND, CAPACITY, SHELLS = 4, 5, 15
 MAX_ROUNDS, WINS_NEEDED, MAX_RANK = 3, 2, 4
 TANK, MAGE, MARKSMAN, ASSASSIN, FIGHTER = range(5)
-PUBLIC_HAND = (TANK, MAGE, MARKSMAN, ASSASSIN)
 PUBLIC_DECK = (FIGHTER, MARKSMAN, TANK, MAGE, ASSASSIN, FIGHTER, TANK, MARKSMAN)
+
+
+def round_shells(round_number):
+    return SHELLS + (round_number-1)*round_number//2
 
 
 @dataclass(frozen=True)
@@ -65,11 +71,22 @@ class Recruit:
     rank: int = 1
     paid: int = 0
     upgraded_round: int = 0
+    purchase_order: int = 0
+
+
+@dataclass(frozen=True)
+class ShopCard:
+    hero: int
+    rank: int = 1
+
+    @property
+    def cost(self):
+        return ROSTER[self.hero].cost + self.rank - 1
 
 
 @dataclass(frozen=True)
 class DraftAction:
-    hero: int
+    card: ShopCard
     cell: tuple
 
 
@@ -78,26 +95,16 @@ class UpgradeAction:
     cell: tuple
 
 
-@dataclass(frozen=True)
-class RedeployAction:
-    slot: int
-    cell: tuple
-
-
 @dataclass
 class Side:
     hand: list
-    next_card: int
+    next_card: ShopCard
     field: dict
     shells: int = SHELLS
     ready: bool = False
     draws: int = 0
     upgrades: int = 1
-    returning: list = field(default_factory=list)
-
-    @property
-    def to_deploy(self):
-        return sum(recruit is not None for recruit in self.returning)
+    carried_cards: tuple = ()
 
 
 @dataclass(eq=False)
@@ -182,13 +189,10 @@ def clamp(value, low, high):
 
 class Match:
     def __init__(self, seed=None, *, public_draft=False, effects=True, countdown=False):
-        random = Random(seed)
-        self.random = (Random(random.getrandbits(64)), Random(random.getrandbits(64)))
+        self.draft_random = Random(seed)
         self.public_draft = public_draft
         self.draw_effects = effects
         self.start_countdown = countdown
-        self.sides = [Side(list(PUBLIC_HAND), PUBLIC_DECK[0], {}) if public_draft
-                      else Side(self.start_hand(i), self.random[i].randrange(len(ROSTER)), {}) for i in range(2)]
         self.phase = "prep"
         self.time = 0.
         self.round_number = 1
@@ -196,14 +200,47 @@ class Match:
         self.round_wins = [0, 0]
         self.winner = None
         self.reason = ""
+        self.timeout_health = None
         self.fighters = []
         self.effects = []
+        self.deal_draft()
+
+    def deal_draft(self, previous=(None, None)):
+        rng = self.draft_random
+        # Later deals stay reproducible even if the teams made different shop purchases.
+        self.random = (Random(rng.getrandbits(64)), Random(rng.getrandbits(64)))
+        if self.public_draft:
+            hand = rng.sample(range(len(ROSTER)), HAND)
+            preview, = set(range(len(ROSTER))).difference(hand)
+            offset = PUBLIC_DECK.index(preview)
+            self.public_deck = PUBLIC_DECK[offset:] + PUBLIC_DECK[:offset]
+            opening = [(hand, preview)]*2
+        else:
+            self.public_deck = ()
+            opening = [(self.start_hand(side), self.random[side].randrange(len(ROSTER))) for side in range(2)]
+        self.sides = []
+        for (hand, preview), old_team in zip(opening, previous):
+            recruits = sorted(old_team.field.values(), key=lambda unit: unit.purchase_order) if old_team else ()
+            carried = tuple(ShopCard(unit.hero, unit.rank) for unit in recruits)
+            cards = self.starting_cards(hand, preview, carried)
+            self.sides.append(Side(cards[:HAND], cards[HAND], {}, shells=round_shells(self.round_number),
+                                   upgrades=self.round_number, carried_cards=carried))
+
+    @staticmethod
+    def starting_cards(hand, preview, carried=()):
+        if not carried:
+            return [ShopCard(hero) for hero in (*hand, preview)]
+        used = {card.hero for card in carried}
+        pool = dict.fromkeys((*hand, preview, *range(len(ROSTER))))
+        fresh = [ShopCard(hero) for hero in pool if hero not in used]
+        return [*carried, *fresh][:HAND+1]
+
+    @staticmethod
+    def draw_private_card(rng, previous):
+        return ShopCard(rng.choice([hero for hero in range(len(ROSTER)) if hero != previous.hero]))
 
     def start_hand(self, side):
-        rng = self.random[side]
-        cards = [TANK, *rng.sample((MAGE, MARKSMAN, ASSASSIN, FIGHTER), 3)]
-        rng.shuffle(cards)
-        return cards
+        return self.random[side].sample(range(len(ROSTER)), HAND)
 
     @property
     def capacity(self):
@@ -226,39 +263,22 @@ class Match:
         if not self.editable(side) or not 0 <= slot < HAND or not self.legal_cell(side, cell):
             return "Choose a tile on your side."
         team = self.sides[side]
-        if team.to_deploy:
-            return "Place your returning penguins first."
-        hero_id = team.hand[slot]
-        hero = ROSTER[hero_id]
+        card = team.hand[slot]
         target = team.field.get(cell)
         if target:
             return "Pick an empty tile. Use Upgrade to train a deployed penguin."
         if len(team.field) >= self.capacity:
             return "Lineup full. Sell a penguin to free a tile."
-        if team.shells < hero.cost:
+        if team.shells < card.cost:
             return "You need more shells."
-        team.shells -= hero.cost
+        team.shells -= card.cost
         team.hand[slot] = team.next_card
         team.draws += 1
         if self.public_draft:
-            team.next_card = PUBLIC_DECK[team.draws % len(PUBLIC_DECK)]
+            team.next_card = ShopCard(self.public_deck[team.draws % len(self.public_deck)])
         else:
-            team.next_card = self.random[side].choice([i for i in range(len(ROSTER)) if i != team.next_card])
-        team.field[cell] = Recruit(hero_id, paid=hero.cost)
-        return ""
-
-    def redeploy(self, side, slot, cell):
-        if not self.editable(side) or not self.legal_cell(side, cell):
-            return "Choose a tile on your side."
-        team = self.sides[side]
-        if not 0 <= slot < len(team.returning) or team.returning[slot] is None:
-            return "That penguin is already deployed."
-        if cell in team.field:
-            return "Pick an empty tile for your returning penguin."
-        if len(team.field) >= self.capacity:
-            return "Your lineup is full."
-        team.field[cell] = team.returning[slot]
-        team.returning[slot] = None
+            team.next_card = self.draw_private_card(self.random[side], team.next_card)
+        team.field[cell] = Recruit(card.hero, card.rank, paid=card.cost, purchase_order=team.draws)
         return ""
 
     def move(self, side, source, destination):
@@ -281,7 +301,7 @@ class Match:
             team = self.sides[side]
             recruit = team.field.pop(cell, None)
             if recruit:
-                team.shells = min(SHELLS, team.shells + max(1, recruit.paid // 2))
+                team.shells = min(round_shells(self.round_number), team.shells + max(1, recruit.paid // 2))
 
     def can_upgrade(self, side, cell):
         team = self.sides[side]
@@ -300,13 +320,13 @@ class Match:
         return ""
 
     def lock(self, side):
-        if self.phase == "prep" and not self.sides[side].to_deploy:
+        if self.phase == "prep":
             self.sides[side].ready = not self.sides[side].ready
             if all(team.ready for team in self.sides):
                 self.fight()
 
     def fight(self):
-        if self.phase != "prep" or any(team.to_deploy for team in self.sides):
+        if self.phase != "prep":
             return
         self.phase, self.time = "countdown" if self.start_countdown else "fight", 0.
         self.effects = []
@@ -335,6 +355,11 @@ class Match:
             if self.time+CLOCK_EPSILON >= LIMIT:
                 self.time = float(LIMIT)
             self.advance_fight()
+        elif self.phase == "aftermath":
+            self.time += STEP
+            self.age_effects()
+            if self.time+CLOCK_EPSILON >= AFTERMATH_DURATION:
+                self.finish_round()
         elif self.phase in ("round_end", "end"):
             if self.phase == "round_end":
                 self.time += STEP
@@ -346,14 +371,11 @@ class Match:
         self.round_number += 1
         self.round_winner = None
         self.reason = ""
+        self.timeout_health = None
         self.phase, self.time = "prep", 0.
         self.fighters.clear()
         self.effects.clear()
-        for team in self.sides:
-            team.ready = False
-            team.upgrades = self.round_number
-            team.returning = sorted(team.field.values(), key=lambda recruit: (recruit.hero, -recruit.rank))
-            team.field.clear()
+        self.deal_draft(self.sides)
         return True
 
     def age_effects(self):
@@ -576,15 +598,22 @@ class Match:
                 team = [unit for unit in self.fighters if unit.side == side]
                 scores.append(fsum(unit.hp for unit in team)/fsum(unit.maximum for unit in team))
             self.round_winner = -1 if abs(scores[0]-scores[1]) < .0001 else int(scores[1] > scores[0])
+            self.timeout_health = tuple(scores)
             self.reason = "Time limit · Remaining health percentage"
         if self.round_winner is None:
             return
+        if self.draw_effects:
+            self.phase, self.time = "aftermath", 0.
+        else:
+            self.finish_round()
+
+    def finish_round(self):
         if self.round_winner != -1:
             self.round_wins[self.round_winner] += 1
         if max(self.round_wins) >= WINS_NEEDED or self.round_number == MAX_ROUNDS:
             a, b = self.round_wins
             self.winner = -1 if a == b else int(b > a)
-            self.phase = "end"
+            self.phase, self.time = "end", 0.
         else:
             self.phase, self.time = "round_end", 0.
 
@@ -594,16 +623,12 @@ class Match:
 
     def apply_draft(self, side, action):
         if action is None:
-            if self.sides[side].to_deploy:
-                return "Place your returning penguins first."
             self.sides[side].ready = True
             return ""
         if isinstance(action, UpgradeAction):
             return self.upgrade(side, action.cell)
-        if isinstance(action, RedeployAction):
-            return self.redeploy(side, action.slot, action.cell)
         hand = self.sides[side].hand
-        return self.buy(side, hand.index(action.hero), action.cell) if action.hero in hand else "Card unavailable."
+        return self.buy(side, hand.index(action.card), action.cell) if action.card in hand else "Card unavailable."
 
     def draft_actions(self, side, limit):
         if not self.editable(side):
@@ -612,18 +637,14 @@ class Match:
         used = {unit.hero for unit in team.field.values()}
         cols = (2, 1, 0) if side == 0 else (5, 6, 7)
         best, variants = [], []
-        returning = team.to_deploy > 0
-        if returning:
-            entries = [(slot, unit.hero) for slot, unit in enumerate(team.returning) if unit is not None]
-        else:
-            entries = [(None, hero) for hero in dict.fromkeys(team.hand) if ROSTER[hero].cost <= team.shells]
-        for slot, index in entries:
-            hero = ROSTER[index]
+        entries = sorted(dict.fromkeys(team.hand), key=lambda card: -card.rank)
+        for card in entries:
             choices = []
-            if len(team.field) < self.capacity:
+            if card.cost <= team.shells and len(team.field) < self.capacity:
+                hero = ROSTER[card.hero]
                 preferred = recommended(hero, side)
-                base = 10. if index not in used else 7.3
-                if index == TANK and TANK not in used:
+                base = 10. if card.hero not in used else 7.3
+                if card.hero == TANK and TANK not in used:
                     base += 2.
                 for col in cols:
                     for row in range(ROWS):
@@ -631,14 +652,13 @@ class Match:
                         if cell in team.field:
                             continue
                         offset = min(abs(col-x)*1.25+abs(row-y)*.45 for x, y in preferred)
-                        action = RedeployAction(slot, cell) if returning else DraftAction(index, cell)
-                        choices.append((base-offset, action))
+                        choices.append((base-offset, DraftAction(card, cell)))
             if choices:
                 choices.sort(key=lambda choice: -choice[0])
                 best.append(choices[0])
                 variants.extend(choices[1:3])
         for cell, recruit in team.field.items():
-            if not returning and self.can_upgrade(side, cell):
+            if self.can_upgrade(side, cell):
                 hero = ROSTER[recruit.hero]
                 priority = 9.4 + .06*hero.attack/hero.interval + .002*hero.hp
                 best.append((priority, UpgradeAction(cell)))

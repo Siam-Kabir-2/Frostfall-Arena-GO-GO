@@ -30,15 +30,15 @@ The repository includes the game art, sound effects, and menu video. Normal play
 | --- | --- | --- |
 | **Human vs Human** | Two players share one screen and mouse. | Each team gets a randomly drawn hand. |
 | **Human vs AI** | You play Coral against Azure. | Pick Minimax, MCTS, or Greedy for Azure. MCTS is the default. |
-| **AI vs AI** | Both squads draft automatically. | Choose each team's algorithm separately. Both teams draw from the same public card sequence. |
+| **AI vs AI** | Both squads draft automatically. | Choose each team's algorithm separately. The two teams share the first opening hand and the regular draw sequence. In later rounds, each team's shop starts with its own previous lineup. |
 
 ## How to play
 
-1. **Draft.** Each team starts with **15 shells**, **4 shop cards**, and space for **5 deployed heroes**. Click or drag a card onto an empty tile on your side. Buying a card spends shells and fills its slot from the next-card preview.
+1. **Draft.** Each round starts with an empty board. Both teams get **15 shells in Round 1**, **16 in Round 2**, and **18 in Round 3**. You can field up to **5 heroes**. Click or drag a card onto an empty tile to buy it and refill its slot from **Next**.
 2. **Set your formation.** Move a deployed hero to another friendly tile or swap it with a teammate already there. Right-click an unselected deployed hero to sell it and recover part of its original cost.
-3. **Upgrade and Ready.** Click **Upgrade** and choose a gold-highlighted hero. Each team receives **1, 2, then 3 upgrade uses** across the rounds. Each hero can upgrade once per round, up to **rank 4**. Both teams can lock in early. If the opening **32-second draft timer** expires with an empty team, the game waits for both sides to field a hero.
+3. **Upgrade and Ready.** Click **Upgrade** and choose a gold-highlighted hero. Each team receives **1, 2, then 3 upgrade uses** across the rounds and can upgrade each hero once per round, up to rank 4. Both teams can lock in early. If the opening **32-second draft timer** expires with an empty team, the game waits for both sides to field a hero.
 4. **Watch the battle.** After **3–2–1**, the combat clock counts down from **00:25**. Both teams can enter the center columns. The round ends on elimination or at the time limit. At timeout, the higher percentage of remaining team health wins. A tie awards neither team a point.
-5. **Redeploy or rematch.** The first team to two wins takes the match. After three rounds, the team with more wins takes the match, or the match ends in a draw if the scores are equal. For rounds two and three, each team redeploys its returning heroes for free, keeps their ranks and remaining shells, and presses **Ready** when finished. Redeployment is untimed.
+5. **Draft again or rematch.** The first team to two wins takes the match. After three rounds, equal scores draw. In rounds two and three, the previous squad goes into the four shop slots and **Next** in purchase order. Regular rank 1 cards fill any gaps. A returning hero keeps its rank and costs **1 extra shell per rank above 1**. Setup for those rounds is untimed.
 
 ### Controls
 
@@ -77,7 +77,7 @@ The selected algorithm decides **how the AI drafts**. During combat, every squad
 | **Minimax** | Searches draft moves and counterpicks with iterative deepening and alpha-beta pruning. In private drafts it samples a plausible opponent hand. |
 | **MCTS** | Samples continuations, simulates battles, and prefers actions supported by its rollouts. |
 
-To launch a seeded match directly or compare planners, run:
+Use `--seed` to repeat the random parts of the shop deals. Returning cards depend on the previous round’s lineup. To launch a seeded match directly or compare planners, run:
 
 ```powershell
 .\.venv\Scripts\python.exe gogo3d.py --mode cpu --azure-ai mcts --seed 42

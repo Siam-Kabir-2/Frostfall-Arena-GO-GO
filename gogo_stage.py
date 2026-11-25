@@ -5,7 +5,7 @@ from math import cos, pi, sin, tau
 
 from panda3d.core import LineSegs, Point2, Point3, TransparencyAttrib
 
-from arena import COLS, HURT_ANIMATION, ROSTER, ROWS, clamp
+from arena import COLS, DEFEAT_ANIMATION, DEFEAT_FADE, DEFEAT_VISIBLE, HURT_ANIMATION, ROSTER, ROWS, clamp
 from gogo_runtime.geometry import FLOE, GOLD, TOP, circle, ease
 from gogo_tiles import BoardTile, TileSkin, load_tile_skins
 from sprites import ATTACK, DEFEAT, FRAMES_PER_POSE, HURT, IDLE, WALK, load_atlases, make_sprite, set_frame
@@ -106,7 +106,7 @@ class GoGoStage:
     def pose(self, unit, x, y, moving):
         if unit is not None:
             if unit.hp <= 0:
-                return action_frame(DEFEAT, unit.fall/.38)
+                return action_frame(DEFEAT, unit.fall/DEFEAT_ANIMATION)
             if unit.hurt_pose and (not unit.attack_pose or unit.hurt_pose > .18):
                 return action_frame(HURT, 1-unit.hurt_pose/HURT_ANIMATION)
             if unit.attack_pose:
@@ -119,7 +119,7 @@ class GoGoStage:
         fighters = match.phase != "prep"
         if fighters:
             units = [(unit.side, unit.recruit, *unit.visual_position, unit.hp/unit.maximum, unit.shield, unit.fall, unit)
-                     for unit in match.fighters if unit.hp > 0 or unit.fall < .74]
+                     for unit in match.fighters if unit.hp > 0 or unit.fall < DEFEAT_VISIBLE]
         else:
             units = [(side, recruit, col+.5, row+.5, 1., 0., 0., None)
                      for side, team in enumerate(match.sides) for (col, row), recruit in team.field.items()]
@@ -149,7 +149,7 @@ class GoGoStage:
                 node.setColorScale(1., .80+.20*opacity, 1., opacity)
                 node.setScale(.54+.46*opacity)
             else:
-                opacity = clamp((.74-fall)/.25, 0., 1.) if not standing else 1.
+                opacity = clamp((DEFEAT_VISIBLE-fall)/DEFEAT_FADE, 0., 1.) if not standing else 1.
                 node.setColorScale(1., 1., 1., opacity)
                 node.setScale(1.)
                 if standing and key in self.upgrades:

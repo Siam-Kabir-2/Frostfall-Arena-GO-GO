@@ -4,7 +4,7 @@ from pathlib import Path
 
 from panda3d.core import CardMaker, Filename, TextNode, Texture, TransparencyAttrib
 
-from arena import COUNTDOWN, HAND, MAX_ROUNDS, ROSTER
+from arena import COUNTDOWN, HAND, MAX_ROUNDS, ROSTER, round_shells
 from gogo_runtime.geometry import GOLD, TEAM, TOP, ease
 from gogo_runtime.hud import Button, FEED, HudLayout, INK, MUTED, NIGHT
 from gogo_stage import hero_tint, world
@@ -180,7 +180,7 @@ class GoGoHUD(HudLayout):
                 self.algorithm_card(planner, bounds, color, planner is selected,
                                     lambda side=side, key=key: game.select_ai(mode, side, key))
         if not human_match:
-            self.text("Both teams draft from the same public deck.", x+32*s, y+h-88*s, 16, FEED)
+            self.text("Both teams share the same draws after their returning cards.", x+32*s, y+h-88*s, 16, FEED)
         self.button("Back", (x+32*s, y+h-72*s, 126*s, 46*s), game.close_modal)
         self.button("Start match", (x+w-229*s, y+h-72*s, 197*s, 46*s),
                     game.confirm, primary=True, arrow=True, size=20)
@@ -217,6 +217,19 @@ class GoGoHUD(HudLayout):
 
     def help(self, game):
         bounds = self.artwork_dialog("help", HELP_PANEL)
+        for top, first, second in (
+            (385, "Choose a battle mode. Buy heroes from the shop",
+             "and place them on your side of the board."),
+            (478, "Draft again with 15, 16, then 18 shells per team.",
+             "Last round’s heroes return to the shop at their ranks."),
+            (571, "Each rank above 1 adds a shell to the price.",
+             "Use your upgrades and press Ready."),
+        ):
+            x, y, w, h = fit_region(bounds, HELP_PANEL, (400, top, 1238, top+80))
+            self.shape(x, y, w, h, (.033, .235, .347, 1), h*.13)
+            size = h*.36/self.s
+            self.text(first, x+w*.022, y+h*.39, size)
+            self.text(second, x+w*.022, y+h*.79, size)
         shortcuts = (("cpu", (219, 701, 541, 809)), ("local", (563, 700, 943, 809)),
                      ("showdown", (966, 700, 1235, 809)))
         if game.mode is None:
@@ -274,19 +287,16 @@ class GoGoHUD(HudLayout):
                 detail = f"{standing}/{len(team.field)} STANDING"
             elif team.ready:
                 detail = "READY"
-            elif team.to_deploy:
-                detail = f"{team.to_deploy} TO PLACE"
             else:
                 detail = f"{len(team.field)}/5 DEPLOYED" if game.human(side) else "PLANNING"
             if game.mode == "showdown":
-                if not team.to_deploy:
-                    detail = detail.split()[0]
-                detail = f"{game.ai_planner(side).label.upper()} · {detail}"
+                detail = f"{game.ai_planner(side).label.upper()} · {detail.split()[0]}"
             self.fit_label(detail, place(name_x-15, 289, name_x+240, 352), 16, color=INK)
 
         if phase == "prep":
-            title = ("AWAITING LINEUPS" if match.seconds_left == 0 else
-                     "REDEPLOY PHASE" if any(team.to_deploy for team in match.sides) else "SETUP PHASE")
+            title = "AWAITING LINEUPS" if match.seconds_left == 0 else "DRAFT PHASE"
+        elif phase == "aftermath":
+            title = "TIME UP" if match.timeout_health is not None else "BATTLE OVER"
         else:
             title = {"countdown": "BATTLE STARTING", "fight": "TIME LEFT",
                      "round_end": "ROUND COMPLETE", "end": "MATCH COMPLETE"}[phase]
@@ -326,7 +336,7 @@ class GoGoHUD(HudLayout):
         size = min(21, h/s)
         self.text(cost, left+coin+2*s, y+h/2+size*s*.29, size, GOLD, "heavy")
 
-    def hero_card(self, side, bounds, hero_id, *, rank=None, selected=False, fade=False, health=None):
+    def hero_card(self, side, bounds, hero_id, *, rank=None, cost=None, selected=False, fade=False, health=None):
         x, y, w, h = bounds
         s = self.s
         if selected:
@@ -337,8 +347,8 @@ class GoGoHUD(HudLayout):
         if rank is not None:
             self.shape(x+w*.09, y+h*.07, w*.29, h*.20, NIGHT, 3*s)
             self.fit_label(f"R{rank}", (x+w*.09, y+h*.07, w*.29, h*.20), 12, color=GOLD)
-        else:
-            self.card_cost(hero.cost, (x, y+h*.78, w, h*.19))
+        if cost is not None:
+            self.card_cost(cost, (x, y+h*.78, w, h*.19))
         if health is not None:
             track_w = w*.76
             self.rounded(x+w*.12, y+h*.87, track_w, max(2*s, h*.052), NIGHT, 2*s)
@@ -347,12 +357,11 @@ class GoGoHUD(HudLayout):
 
     def hand(self, game, side, x, y, w, h):
         team = game.match.sides[side]
-        returning = team.to_deploy > 0
         private = game.mode == "cpu" and side == 1
         dock = self.kit.dock(side, (x, y, w, h))
         self.fit_label(game.team_name(side).upper(), dock.name, 32, align=TextNode.ALeft)
         self.fit_label(f"{team.shells} SHELLS", dock.shells, 22, color=GOLD)
-        caption = "LINEUP" if private else "REDEPLOY" if returning else f"HAND ({HAND} CARDS)"
+        caption = "LINEUP" if private else f"HAND ({HAND} CARDS)"
         self.kit.draw("azure_tag", dock.hand)
         self.fit_label(caption, dock.hand, 14)
 
@@ -364,30 +373,23 @@ class GoGoHUD(HudLayout):
             return
 
         for slot, bounds in enumerate(dock.slots):
-            if returning:
-                if slot >= len(team.returning) or team.returning[slot] is None:
-                    continue
-                recruit = team.returning[slot]
-                hero_id, kind, rank = recruit.hero, "return", recruit.rank
-            elif slot == HAND:
+            if slot == HAND:
                 self.fit_label("NEXT", dock.next_label, 13)
-                self.hero_card(side, bounds, team.next_card)
+                card = team.next_card
+                self.hero_card(side, bounds, card.hero, rank=card.rank, cost=card.cost)
                 break
-            else:
-                hero_id, kind, rank = team.hand[slot], "card", None
-            self.hero_card(side, bounds, hero_id, rank=rank,
-                           selected=game.selected == (side, kind, slot),
-                           fade=not returning and team.shells < ROSTER[hero_id].cost)
-            self.card_slots.append((side, kind, slot, bounds))
+            card = team.hand[slot]
+            self.hero_card(side, bounds, card.hero, rank=card.rank, cost=card.cost,
+                           selected=game.selected == (side, "card", slot), fade=team.shells < card.cost)
+            self.card_slots.append((side, "card", slot, bounds))
 
         human = game.human(side)
         allowed = human and any(game.match.can_upgrade(side, cell) for cell in team.field)
         upgrading = game.selected == (side, "upgrade", None)
         upgrade = "Pick unit" if upgrading else f"Upgrade {team.upgrades}"
-        ready = f"{team.to_deploy} to place" if returning else (
-            "Unlock" if team.ready and human else "Locked" if team.ready else "Ready" if human else "Planning")
+        ready = ("Unlock" if team.ready and human else "Locked" if team.ready else "Ready" if human else "Planning")
         self.dock_button(upgrade, dock.upgrade, (lambda: game.select_upgrade(side)) if allowed else None)
-        self.dock_button(ready, dock.ready, (lambda: game.ready(side)) if human and not returning else None)
+        self.dock_button(ready, dock.ready, (lambda: game.ready(side)) if human else None)
 
     def battle_cards(self, game, side, bounds):
         name, counter, slots = BATTLE_FIELDS[side]
@@ -422,10 +424,15 @@ class GoGoHUD(HudLayout):
         for side in (0, 1):
             self.battle_cards(game, side, bounds)
         match = game.match
-        note = {"countdown": "GET READY", "fight": "HP TIEBREAK",
+        note = {"countdown": "GET READY", "fight": "HP TIEBREAK", "aftermath": "FINAL KNOCKOUT",
                 "round_end": "ROUND COMPLETE", "end": "MATCH COMPLETE"}[match.phase]
         if match.phase == "fight":
             note = self.ai_effort(game) or note
+        elif match.phase == "aftermath":
+            if match.timeout_health is not None:
+                note = "HEALTH TIEBREAK"
+            elif match.round_winner == -1:
+                note = "BOTH TEAMS DOWN"
         self.fit_label(note, fit_region(bounds, BATTLE_REGION, (976, 534, 1197, 586)), 14)
 
     def units(self, game):
@@ -467,19 +474,12 @@ class GoGoHUD(HudLayout):
         status = game.notice if game.notice_time else ""
         if not status and selected and selected[1] == "upgrade":
             status = "Choose a marked penguin to raise its rank by one."
-        if not status and (hover or (selected and selected[1] in ("card", "return"))):
-            side, kind, slot = hover or selected
+        if not status and (hover or (selected and selected[1] == "card")):
+            side, _, slot = hover or selected
             team = game.match.sides[side]
-            if kind == "return":
-                recruit = team.returning[slot]
-                if recruit is not None:
-                    hero = ROSTER[recruit.hero]
-                    status = f"Place {hero.name}  /  Rank {recruit.rank}  /  {hero.position}"
-            else:
-                hero = ROSTER[team.hand[slot]]
-                status = f"{hero.role}  /  {hero.position}  /  {hero.spell}"
-        if not status and any(team.to_deploy for team in game.match.sides):
-            status = "Place your returning penguins to build a new formation."
+            card = team.hand[slot]
+            hero = ROSTER[card.hero]
+            status = f"{hero.name} R{card.rank}  /  {card.cost} shells  /  {hero.position}"
         if not status and game.match.seconds_left == 0:
             status = "Deploy at least one penguin on each side to begin."
         return status
@@ -511,7 +511,7 @@ class GoGoHUD(HudLayout):
         middle = x+w/2
         match = game.match
         seconds = match.seconds_left
-        title = "REDEPLOY" if any(team.to_deploy for team in match.sides) else "SETUP"
+        title = "DRAFT"
         color = INK
         if seconds:
             title = f"DRAFT TIME  ·  {seconds}s"
@@ -575,7 +575,7 @@ class GoGoHUD(HudLayout):
 
         match = game.match
         phase = {"prep": "Draft phase", "countdown": "Battle countdown", "fight": "Battle phase",
-                 "round_end": "Round complete"}[match.phase]
+                 "aftermath": "Battle over", "round_end": "Round complete"}[match.phase]
         detail = f"Round {match.round_number} of {MAX_ROUNDS}  ·  {phase}"
         self.text(detail, center, y+156*s, 19, FEED, "body", CENTER)
         self.shape(x+36*s, y+182*s, w-72*s, s, (.37, .74, .88, .45))
@@ -609,13 +609,20 @@ class GoGoHUD(HudLayout):
                 self.text(game.ai_planner(side).label, left+68*s, y+223*s, 16, FEED)
             self.text(wins, left+249*s, y+224*s, 57, TEAM[side], "heavy", RIGHT)
 
-        if final:
-            self.text(f"{match.round_number} of {MAX_ROUNDS} rounds played", center, y+281*s, 19, FEED,
-                      "body", CENTER)
+        if match.timeout_health is not None:
+            coral, azure = match.timeout_health
+            reason = f"HP tiebreak · Coral {coral:.2%}  /  Azure {azure:.2%}"
         else:
-            self.text(match.reason, center, y+279*s, 20, INK, "label", CENTER)
-            detail = ("Next round starts automatically" if game.mode == "showdown" else
-                      f"{match.round_number+1} upgrades per team next round")
+            reason = match.reason
+        if final:
+            last_round = ("Draw" if match.round_winner == -1 else
+                          f"{SIDE_ART[match.round_winner].title()} won")
+            self.text(f"Round {match.round_number}: {last_round} · {reason}", center, y+279*s, 18,
+                      FEED, "label", CENTER)
+        else:
+            self.text(reason, center, y+279*s, 20, INK, "label", CENTER)
+            next_round = match.round_number+1
+            detail = f"Next draft: {round_shells(next_round)} shells + {next_round} upgrades per team"
             self.text(detail, center, y+306*s, 17, FEED, "body", CENTER)
 
         self.button("Home", (x+35*s, y+h-72*s, 170*s, 52*s), game.home, size=18)
