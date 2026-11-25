@@ -10,6 +10,8 @@ Spend shells to recruit a squad, arrange your formation on an 8 × 5 ice board, 
 
 [Quick start](#quick-start) · [How to play](#how-to-play) · [Hero roster](#hero-roster) · [AI strategies](#ai-strategies) · [Project structure](#project-structure) · [Game guide PDF](output/pdf/Frostfall%20Arena%20Go%20Go%203D%20-%20Game%20Guide.pdf)
 
+[Earlier Frostfall builds and variants](versions/README.md)
+
 ## Quick start
 
 On Windows, open [Play Arena Go Go 3D.cmd](Play%20Arena%20Go%20Go%203D.cmd). The launcher checks this project's `.venv` first, then tries a system Python installation with Panda3D available. All game source and assets are bundled in this repository.

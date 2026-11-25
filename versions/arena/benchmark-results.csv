@@ -1,0 +1,41 @@
+mode,seed,coral,azure,first_team,winner,reason,minimax_fish,mcts_fish,minimax_depth,mcts_budget,minimax_decisions,mcts_decisions,minimax_nodes,mcts_simulations,minimax_ms,mcts_ms
+Classic,610830,Minimax,MCTS,Coral,MCTS,Coral has no legal move,38,30,2,200,17,19,6074,3800,136.635,704.591
+Classic,610830,MCTS,Minimax,Coral,MCTS,Azure has no legal move,40,33,2,200,19,20,4630,4000,62.87,761.178
+Classic,610831,Minimax,MCTS,Coral,Minimax,Azure has no legal move,51,36,2,200,22,17,5854,3400,52.674,496.817
+Classic,610831,MCTS,Minimax,Coral,MCTS,Azure has no legal move,35,34,2,200,17,19,6163,3800,50.847,421.107
+Classic,610832,Minimax,MCTS,Coral,Minimax,Azure has no legal move,37,22,2,200,17,15,3966,3000,39.888,601.883
+Classic,610832,MCTS,Minimax,Coral,MCTS,Azure has no legal move,38,27,2,200,19,21,4132,4200,31.63,503.381
+Classic,610833,Minimax,MCTS,Coral,Minimax,Final fish count,36,30,2,200,18,20,4395,4000,31.887,313.949
+Classic,610833,MCTS,Minimax,Coral,MCTS,Azure has no legal move,43,29,2,200,22,23,3315,4600,18.696,303.602
+Classic,610834,Minimax,MCTS,Coral,MCTS,Coral has no legal move,33,22,2,200,14,15,4464,3000,35.46,291.722
+Classic,610834,MCTS,Minimax,Coral,MCTS,Azure has no legal move,43,26,2,200,18,19,3904,3800,21.708,325.077
+Classic,610835,Minimax,MCTS,Coral,Minimax,Azure has no legal move,42,27,2,200,20,15,3627,3000,22.259,332.309
+Classic,610835,MCTS,Minimax,Coral,MCTS,Azure has no legal move,29,28,2,200,14,16,3274,3200,22.931,327.246
+Classic,610836,Minimax,MCTS,Coral,MCTS,Coral has no legal move,36,24,2,200,17,17,3846,3400,23.236,252.685
+Classic,610836,MCTS,Minimax,Coral,MCTS,Azure has no legal move,38,28,2,200,18,20,3549,4000,18.875,374.546
+Classic,610837,Minimax,MCTS,Coral,MCTS,Coral has no legal move,43,32,2,200,18,18,3248,3600,22.178,427.516
+Classic,610837,MCTS,Minimax,Coral,MCTS,Azure has no legal move,38,31,2,200,16,18,3627,3600,36.611,485.832
+Classic,610838,Minimax,MCTS,Coral,MCTS,Coral has no legal move,37,26,2,200,14,15,5458,3000,80.019,533.239
+Classic,610838,MCTS,Minimax,Coral,MCTS,Azure has no legal move,36,25,2,200,15,16,4100,3200,30.027,348.435
+Classic,610839,Minimax,MCTS,Coral,MCTS,Coral has no legal move,38,37,2,200,19,19,3909,3800,25.174,311.615
+Classic,610839,MCTS,Minimax,Coral,MCTS,Azure has no legal move,44,34,2,200,18,20,3121,4000,16.415,343.862
+Adventure,610830,Minimax,MCTS,Coral,Minimax,Reached 30 fish,30,17,2,200,14,15,12826,3000,152.906,507.837
+Adventure,610830,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,27,2,200,15,15,6952,3000,47.299,465.323
+Adventure,610831,Minimax,MCTS,Coral,Minimax,Reached 30 fish,30,19,2,200,11,10,30713,2000,380.044,424.358
+Adventure,610831,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,22,2,200,13,13,12524,2600,78.66,345.834
+Adventure,610832,Minimax,MCTS,Coral,Minimax,Reached 30 fish,30,14,2,200,12,11,13493,2200,150.18,420.054
+Adventure,610832,MCTS,Minimax,Coral,MCTS,Reached 30 fish,29,30,2,200,15,16,7529,3200,42.598,409.191
+Adventure,610833,Minimax,MCTS,Coral,Minimax,Reached 30 fish,31,16,2,200,16,15,10730,3000,97.578,420.359
+Adventure,610833,MCTS,Minimax,Coral,MCTS,Azure has no legal move,28,22,2,200,16,18,8369,3600,46.16,411.188
+Adventure,610834,Minimax,MCTS,Coral,Minimax,Reached 30 fish,30,24,2,200,14,13,12347,2600,272.34,821.565
+Adventure,610834,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,23,2,200,13,13,6875,2600,121.497,909.458
+Adventure,610835,Minimax,MCTS,Coral,Minimax,Azure has no legal move,28,19,2,200,14,11,11445,2200,172.134,605.454
+Adventure,610835,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,25,2,200,15,14,6159,2800,47.53,512.917
+Adventure,610836,Minimax,MCTS,Coral,MCTS,Coral has no legal move,27,11,2,200,15,16,8635,3200,64.424,315.752
+Adventure,610836,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,28,2,200,18,18,7357,3600,26.555,299.901
+Adventure,610837,Minimax,MCTS,Coral,Minimax,Reached 30 fish,31,21,2,200,12,11,12092,2200,103.997,262.48
+Adventure,610837,MCTS,Minimax,Coral,Minimax,Reached 30 fish,30,29,2,200,14,14,7344,2800,33.214,259.093
+Adventure,610838,Minimax,MCTS,Coral,Minimax,Reached 30 fish,30,28,2,200,14,13,13134,2600,119.618,340.223
+Adventure,610838,MCTS,Minimax,Coral,Minimax,Reached 30 fish,32,25,2,200,13,12,8852,2400,54.553,375.016
+Adventure,610839,Minimax,MCTS,Coral,Minimax,Reached 30 fish,31,21,2,200,13,12,7867,2400,83.312,282.593
+Adventure,610839,MCTS,Minimax,Coral,MCTS,Reached 30 fish,29,30,2,200,13,14,8818,2800,39.017,262.477
